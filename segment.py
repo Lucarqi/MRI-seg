@@ -16,7 +16,7 @@ from predict import valid_seg
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=400, help='number of epochs of training')
-parser.add_argument('--batchSize', type=int, default=8, help='size of the batches')
+parser.add_argument('--batchSize', type=int, default=4, help='size of the batches')
 parser.add_argument('--dataroot', type=str, default='datasets/cyclegan/', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
@@ -25,8 +25,6 @@ parser.add_argument('--input_nc', type=int, default=1, help='number of channels 
 parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
 parser.add_argument('--n_cpu', type=int, default=4, help='number of cpu threads to use during batch generation')
 parser.add_argument('--save_root', type=str, default='output/seg/loss.csv', help='loss path to save')
-parser.add_argument('--crit',type=str, default='crossentropy',help='loss function')
-parser.add_argument('--eval', type=str, default='IoU',help='evaluation functions like IoU,Dice Coffeient,Handoff')
 parser.add_argument('--trans_name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
 opt = parser.parse_args()
 print(opt)
@@ -46,7 +44,7 @@ criterion = CrossEntropyLoss(reduction='mean')
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
-lr_munet = torch.optim.lr_scheduler.StepLR(optimizer,50,gamma=0.5,last_epoch=-1)
+lr_munet = torch.optim.lr_scheduler.StepLR(optimizer,100,gamma=0.2,last_epoch=-1)
 
 # Data Transforms
 transforms_ = Transformation(opt).get()
