@@ -40,7 +40,7 @@ segnet.cuda()
 init_weights(net=segnet,init_type='normal')
 
 # Lossess
-criterion = CrossEntropyLoss(reduction='mean')
+criterion = FocalLoss(reduction='mean')
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))

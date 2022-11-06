@@ -21,7 +21,7 @@ class ImageDataset(Dataset):
     def __init__(self, transforms_ ,unaligned=False, mode='train'):
         self.transform = transforms_
         self.unaligned = unaligned
-        data = nii_loader(str='C0',is_label=False)
+        data = nii_loader(str='T2',is_label=False)
         self.img_A = data['image']
         self.img_B = nii_loader(str='LGE',is_label=False)['image']
         self.info_A = data['info']

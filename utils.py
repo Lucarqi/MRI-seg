@@ -101,7 +101,7 @@ def tensor2nii(tensor,info):
     '''
     de_img = denormalization(tensor)
     de_img = sitk.GetImageFromArray(de_img)
-    sitk.WriteImage(de_img,'datasets/train/fake_lge/%s.nii'%(info))
+    sitk.WriteImage(de_img,'datasets/train/t2_lge/%s.nii'%(info))
 
 # MinMaxScaler and Normalization
 def minmax_normal(input):
