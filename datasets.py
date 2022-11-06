@@ -169,10 +169,10 @@ def load_image(str, paired_label=True):
         `LGE` -- LGE MRI
         `T2` -- T2 MRI
         `C0` -- bSSFP MRI
-        `SysLGE` -- fake lge convert from bssfp
-    
+        `C0LGE` -- fake lge convert from bssfp
+        `T2LGE` -- fake lge convert from t2
     input:
-        `str` -- a list of need type, like ['LGE','SysLGE']
+        `str` -- a list of need type, like ['LGE','C0LGE']
         `paired_label` -- a bool, if True only return image that exesits label,otherwise only return image doesn't have label
     info: all returns is numpy without any preprocess
     output:
@@ -185,9 +185,9 @@ def load_image(str, paired_label=True):
         data = []
         label_ = []
         image_ = []
-        if type_ == 'SysLGE':
+        if type_ == 'C0LGE' or 'T2LGE':
             data = load_fake_lge()
-            label_ = nii_loader(str='C0',is_label=True)['image']
+            label_ = nii_loader(str=type_,is_label=True)['image']
         else:
             data = nii_loader(str=type_,)['image']
             label_ = nii_loader(str=type_,is_label=True)['image']
