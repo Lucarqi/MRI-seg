@@ -262,8 +262,8 @@ class Seglogger():
         self.batch_epoch = batch_epoch
         # save info at end of one epoch training
         train = pd.DataFrame(columns=['epoch','lr','train_loss','valid_loss',
-                                        'Dice','Dice_LV','Dice_Myo','Dice_RV',
-                                        'Jaccard','Jaccard_LV','Jaccard_Myo','Jaccard_RV'])
+                                        'Dice','Dice_Myo','Dice_LV','Dice_RV',
+                                        'Jaccard','Jaccard_Myo','Jaccard_LV','Jaccard_RV'])
         train.to_csv(self.save_root,index=False)
     def log(self,data=None):
         # save time for rest time compute

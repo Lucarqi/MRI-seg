@@ -141,15 +141,17 @@ def nii_loader(str, is_label=False):
 ###############################################
 
 # 加载fake_lge数据
-def load_fake_lge():
+def load_fake_lge(type=None):
     '''
     load all fake lge that convert from bssfp
-
+    input:
+        `type` -- source image
     output:
         a list of all fake lge [N, H, W]
     '''
     re_image = []
-    root = 'datasets/train/fake_lge'
+    root = {'C0LGE':'datasets/train/fake_lge','T2LGE':'datasets/train/t2_lge'}
+    root = root[type]
     filename = os.listdir(root)
     filename.sort(key=lambda x:(int(re.split(r'_|\.',x)[0][7:]), int(re.split(r'_|\.',x)[2])))
     for name in filename:
@@ -185,9 +187,10 @@ def load_image(str, paired_label=True):
         data = []
         label_ = []
         image_ = []
-        if type_ == 'C0LGE' or 'T2LGE':
-            data = load_fake_lge()
-            label_ = nii_loader(str=type_,is_label=True)['image']
+        if type_ == 'C0LGE' or type_ == 'T2LGE':
+            data = load_fake_lge(type_)
+            str = {'C0LGE':'C0','T2LGE':'T2'}
+            label_ = nii_loader(str=str[type_],is_label=True)['image']
         else:
             data = nii_loader(str=type_,)['image']
             label_ = nii_loader(str=type_,is_label=True)['image']

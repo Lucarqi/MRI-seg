@@ -127,14 +127,14 @@ class DiceLoss(nn.Module):
 
 def DiceScore(predict, target):
     '''
-    Dice Score for validation step
+    2D Dice Score for validation step
     Input:
         `predict` -- a tensor of prediction [1,C,H,W]
         `target` -- a tensor of target onehot [1,C,H,W]
     Output:
-        a list as Dice Score of this sample in order of {'LV','Myo','RV'}
+        a list as Dice Score of this sample in order of {'Myo','LV','RV'}
     Info:
-        there are four class as {Backgroud,LV,Myo,RV}
+        there are four class as {Backgroud,Myo,LV,RV}
         value '-1' means this class doesn't exesits in both `predict` and `target`
     '''
     nclasses = predict.shape[1]
@@ -164,14 +164,14 @@ def DiceScore(predict, target):
     
 def JaccardIndex(predict, target):
     '''
-    Jaccard Index for validation step
+    2D Jaccard Index for validation step
     Input:
         `predict` -- a tensor of prediction [1,C,H,W]
         `target` -- a tensor of target onehot [1,C,H,W]
     Output:
-        a list as JaccardIndex of this sample in order of {'LV','Myo','RV'}
+        a list as JaccardIndex of this sample in order of {'Myo','LV','RV'}
     Info:
-        there are four class as {Backgroud,LV,Myo,RV}
+        there are four class as {Backgroud,Myo,LV,RV}
         value '-1' means this class doesn't exesits in both `predict` and `target`
     '''
     nclasses = predict.shape[1]
@@ -198,4 +198,18 @@ def JaccardIndex(predict, target):
             jaccard.append(intersection / union)
     assert len(jaccard) == nclasses-1
     return jaccard
-    
+
+def ThreedDiceScore(predict,target):
+    '''
+    3D Dice Score
+    Input:
+        `predict` -- a numpy of prediction [batchsize,H,W]
+        `target` -- a numpy of target mask [batchsize,H,W]
+    Output:
+        a numpy [4,] as DiceScore of this sample in order of {'background','Myo','LV','RV'} 
+    '''
+    dice = []
+    for i in range(0,4):
+        dice_i = 2*(np.sum((predict==i)*(target==i),dtype=np.float32)+0.0001)/(np.sum(predict==i,dtype=np.float32)+np.sum(target==i,dtype=np.float32)+0.0001)
+        dice = dice + [dice_i]
+    return np.array(dice,dtype=np.float32)

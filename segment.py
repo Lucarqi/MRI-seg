@@ -17,9 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=8, help='size of the batches')
-parser.add_argument('--dataroot', type=str, default='datasets/cyclegan/', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
-parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
 parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
 parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
 parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
@@ -29,18 +27,15 @@ parser.add_argument('--trans_name', type=str, default='segmentation', help='choo
 opt = parser.parse_args()
 print(opt)
 
-# get device 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 # Networks
 segnet = MUnet(opt.input_nc, opt.output_nc)
 segnet.cuda()
 
 # Initial Weights
-init_weights(net=segnet,init_type='normal')
+init_weights(net=segnet,init_type='kaiming')
 
 # Lossess
-criterion = FocalLoss(reduction='mean')
+criterion = CrossEntropyLoss(reduction='mean')
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
@@ -52,7 +47,7 @@ train_trans = transforms_['train']
 valid_trans = transforms_['valid']
 
 # Get require data
-types = ['SysLGE','LGE']
+types = ['C0LGE','T2LGE','LGE']
 need_data = load_image(str=types,paired_label=True)
 image = need_data['image']
 label = need_data['label']
@@ -102,7 +97,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         jaccard = 0
         # if end of one epoch:  validation
         if ((i+1) % len(train_dataloader)) == 0:
-            re = valid_seg(model=segnet,dataloader=valid_dataloader,criterion=criterion,device=device)
+            re = valid_seg(model=segnet,dataloader=valid_dataloader,criterion=criterion)
             valid_loss = re['loss']
             mdice = np.mean(re['dice'][:,0])
             mjaccard = np.mean(re['jaccard'][:,0])
