@@ -115,6 +115,17 @@ def minmax_normal(input):
     normal = (scaler - 0.5) / 0.5 # convert to [-1,1]
     return normal
 
+def normal_normal(input):
+    '''
+    input :
+        tensor [1,h,w]
+    return :
+        normal normalization tensor, which means = 0.5, std = 0.5
+    '''
+    normal = (input - torch.mean(input,dim=(1,2),keepdim=True)) / (torch.std(input,dim=(1,2),keepdim=True))
+    out = normal * 0.5 + 0.5
+    return out
+
 # 保存训练信息
 class Logger():
     def __init__(self, n_epochs, batches_epoch, save_root):

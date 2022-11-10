@@ -9,12 +9,12 @@ from torch.utils.data import DataLoader
 from preprocess import Transformation
 import argparse
 import sys
-from models import MUnet
+from models import MUnet,Unet
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from utils import *
 from EvalAndLoss import *
-
+import albumentations as A
 def mean_std(score):
     '''
     compute mean and std for the given numpy [N,C]
@@ -75,13 +75,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
     parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
-    parser.add_argument('--save_root', type=str, default='output/seg/6/best_dice.pth',help='path root to store model parameters')
+    parser.add_argument('--save_root', type=str, default='output/seg/best_dice.pth',help='path root to store model parameters')
     parser.add_argument('--trans_name',type=str, default='segmentation',help='trans type of dataset')
     opt = parser.parse_args()
     print(opt)
 
     # model
-    model = MUnet(opt.input_nc,opt.output_nc)
+    model = Unet(opt.input_nc,opt.output_nc)
     # load state dict
     model.load_state_dict(torch.load(opt.save_root))
     model.eval().cuda()
@@ -99,6 +99,8 @@ def main():
         labelroot = os.path.join('datasets/test/C0LET2_gt_for_challenge19/LGE_manual_35_TestData',labelname[i])
         image = sitk.ReadImage(imageroot)
         image = sitk.GetArrayFromImage(image) # [N,H,W]
+        # do center crop
+        #image = A.CenterCrop(height=256,width=256)(image)['image']
         out = np.zeros((image.shape[0],image.shape[1],image.shape[2])) # [n,h,w]
         # get all predict
         for j in range(len(image)):
@@ -106,6 +108,8 @@ def main():
             input = minmax_normal(input).unsqueeze(dim=0).cuda() # [1,1,h,w]
             predict = model(input) # [1,4,h,w]
             output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0)
+            # reverse to original size
+            #output = 
             out[j,:,:] = output.numpy()
 
         label = sitk.ReadImage(labelroot)

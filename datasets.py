@@ -7,7 +7,7 @@ import numpy as np
 import nibabel as nib
 from torch.utils.data import Dataset
 import SimpleITK as sitk
-
+import albumentations as A
 from utils import mask2onehot, minmax_normal
 
 ###################################################
@@ -223,8 +223,14 @@ class SegDataset(Dataset):
 
     def __getitem__(self,index):
         image = self.image[index]
+        mask = self.label[index]
         if self.mode == 'train':
             mask = self.label[index]
+            # do resize first
+            if image.shape[0] < 256:
+                first = A.Resize(256,256)(image=image,mask=mask)
+                image = first['image']
+                mask = first['mask']
             # do transforms
             data = self.transforms(image=image,mask=mask)
             trans_i = data['image']
@@ -237,18 +243,12 @@ class SegDataset(Dataset):
             onehot = mask2onehot(mask=trans_m,label=remark)
             return {'image':nor_i, 'target':onehot}
         elif self.mode == 'valid':
-            mask = self.label[index]
-            # do nothing transforms
+            # just do Resize
             tensor_i = torch.tensor(image).unsqueeze(dim=0)
             nor_i = minmax_normal(tensor_i)
             remark = [[0.0],[200.0],[500.0],[600.0]]
             onehot = mask2onehot(mask=mask,label=remark)
             return {'image':nor_i, 'target':onehot}
-        elif self.mode == 'test':
-            # do nothing transforms
-            tensor_i = torch.tensor(image).unsqueeze(dim=0)
-            nor_i = minmax_normal(tensor_i)
-            return {'image':nor_i}
 
     def __len__(self):
         return(len(self.label))

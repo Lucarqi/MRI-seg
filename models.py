@@ -127,13 +127,18 @@ class convTwice(nn.Module):
 
 # upsamping class {ConvTrans (ConvTwice)}
 class UnetUp(nn.Module):
-    def __init__(self, pre_c ,input_c ,add_conv = False, is_drop = False,kernel_size = 4, stide = 2 ,classes = 4):
+    def __init__(self, pre_c ,input_c ,add_conv = False, is_drop = False,kernel_size = 4, stide = 2 ,classes = 4, is_scale=True):
         super(UnetUp, self).__init__()
-        self.convtwice = convTwice(pre_c+classes, pre_c, is_drop)
+        convin = pre_c + pre_c
+        transout = pre_c
+        if is_scale: 
+            convin = pre_c + classes
+            transout = classes
+        self.convtwice = convTwice(convin, pre_c, is_drop)
         self.add_conv = add_conv
         models = []
         models += [
-            nn.ConvTranspose2d(input_c, classes, kernel_size, stide, padding=1),
+            nn.ConvTranspose2d(input_c, transout, kernel_size, stide, padding=1),
         ]
         self.models = nn.Sequential(*models)
 
@@ -222,3 +227,56 @@ class MUnet(nn.Module):
         # final out (no need softmax)
         #out = self.out(deepvision3)
         return deepvision3
+
+# normal unet
+class Unet(nn.Module):
+    def __init__(self,inc,ouc,classes=4):
+        super(Unet,self).__init__()
+        # total 4 layer downsampling or upsampling
+        # downsampling
+        # 1->64
+        self.down1 = convTwice(inc,64)
+        self.maxplooing1 = nn.MaxPool2d(kernel_size=2)
+        # 64->128
+        self.down2 = convTwice(64,128)
+        self.maxplooing2 = nn.MaxPool2d(kernel_size=2)
+        # 128->256
+        self.down3 = convTwice(128,256)
+        self.maxplooing3 = nn.MaxPool2d(kernel_size=2)
+        # 256->512
+        self.down4 = convTwice(256,512)
+        self.maxplooing4 = nn.MaxPool2d(kernel_size=2)
+        # 512->1024
+        self.bottomneck = convTwice(512,1024)
+
+        # upsampling
+        # 1024->512
+        self.unetup1 = UnetUp(512,1024,add_conv=True,is_scale=False)
+        # 512->256
+        self.unetup2 = UnetUp(256,512,add_conv=True,is_scale=False)
+        # 256->128
+        self.unetup3 = UnetUp(128,256,add_conv=True,is_scale=False)
+        # 128->64
+        self.unetup4 = UnetUp(64,128,add_conv=True,is_scale=False)
+
+        # outlayers
+        self.conv1 = nn.Conv2d(64,4,kernel_size=1)
+    def forward(self,x):
+        conv1 = self.down1(x)
+        maxpooling1 = self.maxplooing1(conv1)
+        conv2 = self.down2(maxpooling1)
+        maxpooling2 = self.maxplooing2(conv2)
+        conv3 = self.down3(maxpooling2)
+        maxpooling3 = self.maxplooing3(conv3)
+        conv4 = self.down4(maxpooling3)
+        maxpooling4 = self.maxplooing4(conv4)
+
+        bottom = self.bottomneck(maxpooling4)
+
+        up1 = self.unetup1(bottom,conv4)
+        up2 = self.unetup2(up1,conv3)
+        up3 = self.unetup3(up2,conv2)
+        up4 = self.unetup4(up3,conv1)
+
+        out = self.conv1(up4)
+        return out

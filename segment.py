@@ -3,7 +3,7 @@ import argparse
 from torch.utils.data import DataLoader
 import torch
 
-from models import MUnet
+from models import MUnet,Unet
 from torch.autograd import Variable
 from utils import LambdaLR, Seglogger
 from utils import init_weights
@@ -15,7 +15,7 @@ from predict import valid_seg
 # 超参数的设置
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
-parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
+parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=8, help='size of the batches')
 parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
 parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
@@ -28,18 +28,18 @@ opt = parser.parse_args()
 print(opt)
 
 # Networks
-segnet = MUnet(opt.input_nc, opt.output_nc)
+segnet = Unet(opt.input_nc, opt.output_nc)
 segnet.cuda()
 
 # Initial Weights
 init_weights(net=segnet,init_type='kaiming')
 
 # Lossess
-criterion = CrossEntropyLoss(reduction='mean')
+criterion = FocalLoss(reduction='mean')
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
-lr_munet = torch.optim.lr_scheduler.StepLR(optimizer,50,gamma=0.2,last_epoch=-1)
+lr_munet = torch.optim.lr_scheduler.StepLR(optimizer,50,gamma=0.1,last_epoch=-1)
 
 # Data Transforms
 transforms_ = Transformation(opt).get()
@@ -47,7 +47,7 @@ train_trans = transforms_['train']
 valid_trans = transforms_['valid']
 
 # Get require data
-types = ['C0LGE','T2LGE','LGE']
+types = ['C0LGE','LGE']
 need_data = load_image(str=types,paired_label=True)
 image = need_data['image']
 label = need_data['label']

@@ -8,6 +8,7 @@ import cv2
 #############################################
 # normal transforms
 #############################################
+
 class Transformation:
     '''
     ues method .get() to get transformations
@@ -49,7 +50,7 @@ class Transformation:
             A.Transpose(),
         ])
         valid_transforms = A.Compose([
-            #A.Resize(self.opt.size),
+            A.Resize(self.opt.size),
         ])
         return {'train':train_transforms, 'valid':valid_transforms}
 
