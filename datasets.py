@@ -1,13 +1,10 @@
 import random
 import os
 import re
-
 import torch
 import numpy as np
-import nibabel as nib
 from torch.utils.data import Dataset
 import SimpleITK as sitk
-import albumentations as A
 from utils import mask2onehot, minmax_normal
 
 ###################################################
@@ -18,16 +15,13 @@ class ImageDataset(Dataset):
     '''
     Dataloader of cyclegan
     '''
-    def __init__(self, transforms_ ,unaligned=False, mode='train'):
+    def __init__(self, transforms_ ,unaligned=False):
         self.transform = transforms_
         self.unaligned = unaligned
-        data = nii_loader(str='T2',is_label=False)
-        self.img_A = data['image']
-        self.img_B = nii_loader(str='LGE',is_label=False)['image']
-        self.info_A = data['info']
+        self.img_A = nii_loader(str='T2',is_label=False)
+        self.img_B = nii_loader(str='LGE',is_label=False)
         self.len_a = len(self.img_A)
         self.len_b = len(self.img_B)
-        self.mode = mode
 
     def __getitem__(self, index):
         # warning: make sure index does't out of range
@@ -36,8 +30,6 @@ class ImageDataset(Dataset):
         # apply torch transform
         a_tensor = torch.from_numpy(self.img_A[index_a]).float().unsqueeze(0)
         item_A = self.transform(a_tensor)
-        if self.mode == 'valid':
-            item_A = a_tensor
         # minmaxscaler and normalization
         item_A = minmax_normal(item_A)
 
@@ -47,165 +39,167 @@ class ImageDataset(Dataset):
             b_tensor = torch.from_numpy(self.img_B[index_b]).float().unsqueeze(0)
         item_B = self.transform(b_tensor)
         item_B = minmax_normal(item_B)
-        # B is info if mode='valid'
-        if self.mode == 'valid':
-            info_ = self.info_A[index_a]
-            return {'A':item_A,'B':info_}
         return {'A': item_A, 'B': item_B}
 
     def __len__(self):
-        if self.mode =='valid':
-            return self.len_a
         return max(self.len_a, self.len_b)
 
 
-# read .nii file, convert it into numpy 
-def nii_reader(dataroot,filename):
+# read one .nii file, convert it into numpy 
+def nii_reader(datapath):
     '''
-    Method: 
-        read one .nii.gz or .nii and return all slices
-    
-    Parameters:
-        dataroot: 
-            path of .nii or .nii.gz file
-        filename:
-
-    Return:
-        re_slice: 
-            all slices of given file , dtype is numpy.float32 list, size is [N, H, W]
-            original range( > 255.0)
-        info:
-            basic info of given file , dtype is string list, size is [N, ]
+    read one .nii.gz or .nii and return all slices
+    Input:
+        `datapath` -- str, path of .nii or .nii.gz file
+    Output:
+        a list of all slice in one patient size is [H, W]
     info:
-        there is no none pixel image in LGE, C0
+        original range( > 255.0)
     '''
-
     re_slice = []
-    info = []
-    root = os.path.join(dataroot,filename)
-    assert os.path.exists(root)
-    ori_data = nib.load(root)
-    # convert float64 into float32 ,float64 does not supported by transform.ToPILiamge
-    img = np.float32(ori_data.get_fdata())
-    dim = img.shape[-1]
+    assert os.path.exists(datapath)
+    ori_data = sitk.ReadImage(datapath,outputPixelType=sitk.sitkFloat32)
+    img = sitk.GetArrayFromImage(ori_data) # [n,h,w]
+    dim = img.shape[0]
     
     for i in range(0,dim):
-        img_ = img[:,:,i]
-        info_ = re.search('([\w]*).nii([.]*)',filename).group(1) + '_' + str(i+1)
+        img_ = img[i]
         re_slice.append(img_)
-        info.append(info_)
-
-    return re_slice, info
+    return re_slice
 
 # load all patient images or labels by given str
 def nii_loader(str, is_label=False):
     '''
-    Method:
-        load all patient images or lables by given str
-        str includes:
-            all : all images or labels
-            C0 : all bSSFP images or labels
-            T2 : all T2-weight images or labels
-            LGE : all LGE CMR or labels
-    
-    Parameters:
-        str:
-            choosed type
-        is_label:
-            load label or not
-    Return :
-        one dict of {'image':[N, H, W],'info':[N,]}
+    load all patient images or lables by given str
+    str includes:
+        all : all images or labels
+        C0 : all bSSFP images or labels
+        T2 : all T2-weight images or labels
+        LGE : all LGE CMR or labels
+    Input:
+        `str` -- choosed type
+        `is_label` -- load label or not
+    Output:
+        a numpy [N,H,W]
     '''
-    
     dataroot = 'datasets/train/all_image'
     if is_label:
         dataroot = 'datasets/train/all_label'
     filename = os.listdir(dataroot)
-    filename.sort(key=lambda x:int(x.split('_')[0][7:]))
     # select filename by str
     if str != 'all':
         filename = list(filter(lambda x: re.search(str,x) is not None,filename))
+    filename.sort(key=lambda x:int(x.split('_')[0][7:]))
     re_images = []
-    re_infos = []
     # get image and info respectively
     for name in filename:
         # get given file all slices
-        images, infos = nii_reader(dataroot,name)
+        datapath = os.path.join(dataroot,name)
+        images = nii_reader(datapath)
         re_images.extend(images)
-        re_infos.extend(infos)
-    
-    return {'image':re_images, 'info':re_infos}
+    return re_images
 
 ###############################################
 # Segmentation
 ###############################################
 
-# 加载fake_lge数据
-def load_fake_lge(type=None):
+def getfilepath(str):
     '''
-    load all fake lge that convert from bssfp
-    input:
-        `type` -- source image
-    output:
-        a list of all fake lge [N, H, W]
+    get all file path
+    Input:
+        `str` -- image type
+    Output:
+        a dict {'image':[path],'label':[path]}
     '''
-    re_image = []
-    root = {'C0LGE':'datasets/train/fake_lge','T2LGE':'datasets/train/t2_lge'}
-    root = root[type]
-    filename = os.listdir(root)
-    filename.sort(key=lambda x:(int(re.split(r'_|\.',x)[0][7:]), int(re.split(r'_|\.',x)[2])))
-    for name in filename:
-        data_dir = os.path.join(root,name)
-        d1 = sitk.ReadImage(data_dir)
-        d2 = sitk.GetArrayFromImage(d1)
-        # original size
-        fake_lge = np.squeeze(d2)
-        re_image.append(fake_lge)
-    return re_image
+    allimageroot = 'datasets/train/all_image/'
+    alllabelroot = 'datasets/train/all_label/'
+    c0lgeroot = 'datasets/train/fake_lge/'
+    t2lgeroot = 'datasets/train/t2_lge/'
+    re = {'image':[],'label':[]}
+    def generate(number,suffix,root):
+        paths = []
+        for i in range(1,number+1):
+            path = root +'patient'+str(i) + suffix
+            paths.append(path)
+        return paths
+    if str == 'C0LGE':
+        re['image'] = generate(35,'_C0.nii.gz',c0lgeroot)
+        re['label'] = generate(35,'_C0_manual.nii.gz',alllabelroot)
+    if str == 'T2LGE':
+        re['image'] = generate(35,'_T2.nii.gz',t2lgeroot)
+        re['label'] = generate(35,'_T2_manual.nii.gz',alllabelroot)
+    if str == 'C0':
+        re['image'] = generate(35,'_C0.nii.gz',allimageroot)
+        re['label'] = generate(35,'_C0_manual.nii.gz',alllabelroot)
+    if str == 'T2':
+        re['image'] = generate(35,'_T2.nii.gz',allimageroot)
+        re['label'] = generate(35,'_T2_manual.nii.gz',alllabelroot)
+    if str == 'LGE':
+        re['image'] = generate(5,'_LGE.nii.gz',allimageroot)
+        re['label'] = generate(5,'_LGE_manual.nii.gz',alllabelroot)
+    return re
 
-# 为分割任务加载数据
-def load_image(str, paired_label=True):
+# load datasets for segmentation
+def makedatasets(types:list, lge_valid = True, split=0.2):
     '''
-    load paired {image,label} or {image, (no label)} based on 'str' and 'paired_label' for segmentation
-    str is the type of image , include :
-        `LGE` -- LGE MRI
-        `T2` -- T2 MRI
-        `C0` -- bSSFP MRI
-        `C0LGE` -- fake lge convert from bssfp
-        `T2LGE` -- fake lge convert from t2
-    input:
-        `str` -- a list of need type, like ['LGE','C0LGE']
-        `paired_label` -- a bool, if True only return image that exesits label,otherwise only return image doesn't have label
-    info: all returns is numpy without any preprocess
-    output:
-        one dict of {'image':..., 'label':...}
-        or one dict of {'image':...}
+    load image on patient-by-patient basis instead of slices
+    types:
+        `C0` : bssfp image
+        `LGE` : lge image
+        `T2`: t2 image
+        `C0LGE`: fake lge convert from bssfp
+        `T2LGE`: fake lge convert from t2
+    Input: 
+        `types` -- a list of image type like ['LGE','C0LGE'], which means you want to train or validate
+        `lge_valid` -- bool, if ture only `LGE` for validation
+                        notice: include `LGE` can take effect, besides the element in `types` must be more than 1(>1) 
+        `split` -- float, division ratio of training and test set, besides `split` = valid / all
+                        notice: if `lge_valid` is true, this cann't take effect
+    Output:
+        two numpy of [h,w] for training as image and label input
+        and a dict of {'image':[path],'label':[path]} for validation
     '''
-    label = []
-    image = []
-    for type_ in str:
-        data = []
-        label_ = []
-        image_ = []
-        if type_ == 'C0LGE' or type_ == 'T2LGE':
-            data = load_fake_lge(type_)
-            str = {'C0LGE':'C0','T2LGE':'T2'}
-            label_ = nii_loader(str=str[type_],is_label=True)['image']
-        else:
-            data = nii_loader(str=type_,)['image']
-            label_ = nii_loader(str=type_,is_label=True)['image']
-        if paired_label:
-            # pick images which have label
-            image_ = data[:len(label_)]
-        else:
-            # pick images which don't have label
-            image_ = data[len(label_):]
-        image.extend(image_)
-        label.extend(label_)
-    if paired_label:
-        return {'image':image, 'label':label}
+    if lge_valid and 'LGE' not in types:
+        raise RuntimeError('no LGE type in `types` when `lge_valid` is true')
+    if lge_valid and len(types) == 1:
+        raise RuntimeError('the element in `types` must more than one when `lge_valid` is true')
+
+    train_image = []
+    train_label = []
+    valid_path = {}
+    paths = {}
+    for type_ in types:
+        paths[type_] = getfilepath(type_)    
+    
+    if lge_valid:
+        valid_path['image'] = paths['LGE']['image']
+        valid_path['label'] = paths['LGE']['label']
+        types.remove('LGE')
+        for i in types:
+            for imagepath in paths[i]['image']:
+                out = nii_reader(imagepath)
+                train_image.extend(out)
+            for labelpath in paths[i]['label']:
+                out = nii_reader(labelpath)
+                train_label.extend(out)
     else:
-        return {'image':image}
+        all_imagepath = []
+        all_labelpath = []
+        for i in types:
+            all_imagepath.extend(paths[i]['image'])
+            all_labelpath.extend(paths[i]['label'])
+        assert len(all_imagepath) == len(all_labelpath)
+        lens = int(len(all_imagepath) * split)
+        assert lens >= 1
+        valid_path['image'] = all_imagepath[:lens]
+        valid_path['label'] = all_labelpath[:lens]
+        for imagepath in all_imagepath[lens:]:
+            out = nii_reader(imagepath)
+            train_image.extend(out)
+        for labelpath in all_labelpath[lens:]:
+            out = nii_reader(labelpath)
+            train_label.extend(out)
+    return train_image, train_label, valid_path
 
 # Dataloader of Segmentation
 class SegDataset(Dataset):
@@ -214,38 +208,25 @@ class SegDataset(Dataset):
         one dict of {'image':..., 'target':....} for train or validation
         or one dict of {'image':...} for test
     '''
-    def __init__(self,transforms_,image, label, mode='train'):
+    def __init__(self,transforms_,image, label):
         self.transforms = transforms_
-        self.mode = mode
         self.image = image
         self.label = label
-        self.mode = mode
 
     def __getitem__(self,index):
         image = self.image[index]
         mask = self.label[index]
-        if self.mode == 'train':
-            # do transforms
-            data = self.transforms(image=image,mask=mask)
-            trans_i = data['image']
-            trans_m = data['mask']
-            # image normalization
-            tensor_i = torch.tensor(trans_i).unsqueeze(dim=0)
-            nor_i = minmax_normal(tensor_i)
-            # mask convert to onehot
-            remark = [[0.0],[200.0],[500.0],[600.0]]
-            onehot = mask2onehot(mask=trans_m,label=remark)
-            return {'image':nor_i, 'target':onehot}
-        elif self.mode == 'valid':
-            # resize both ,but only crop image,after test to padding predict
-            data = self.transforms(image=image,mask=mask)
-            trans_i = data['image']
-            trans_m = data['mask']
-            tensor_i = torch.tensor(trans_i).unsqueeze(dim=0)
-            nor_i = minmax_normal(tensor_i)
-            remark = [[0.0],[200.0],[500.0],[600.0]]
-            onehot = mask2onehot(mask=trans_m,label=remark)
-            return {'image':nor_i, 'target':onehot}
+        # do transforms
+        data = self.transforms(image=image,mask=mask)
+        trans_i = data['image']
+        trans_m = data['mask']
+        # image normalization
+        tensor_i = torch.tensor(trans_i).unsqueeze(dim=0)
+        nor_i = minmax_normal(tensor_i)
+        # mask convert to onehot
+        remark = [[0.0],[200.0],[500.0],[600.0]]
+        onehot = mask2onehot(mask=trans_m,label=remark)
+        return {'image':nor_i, 'target':onehot}
 
     def __len__(self):
         return(len(self.label))
