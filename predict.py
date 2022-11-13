@@ -81,6 +81,7 @@ def main():
     parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
     parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
     parser.add_argument('--model_save', type=str, default='output/seg/best_dice.pth',help='path root to store model parameters')
+    parser.add_argument('--results', type=str, default='output/seg/results.txt',help='path to save results')
     opt = parser.parse_args()
     print(opt)
 
@@ -122,8 +123,10 @@ def main():
         label = (label==200) * 1 + (label==500) * 2 + (label==600) * 3 # [N,h,w]
         dice_score = ThreedDiceScore(out,label)
         result[i,:] = dice_score
-    np.savetxt("result.txt", result, fmt = '%f', delimiter = ',')
+    np.savetxt(opt.results, result, fmt = '%f', delimiter = ',')
     mean = np.mean(result,axis=0)
+    with open (opt.results, 'a') as f:
+        f.write('Backgroud:%.4f  --  Myo:%.4f  --  LV:%.4f  --  RV:%.4f'%(mean[0],mean[1],mean[2],mean[3]))
     print('Dice Score:  Myo:%.4f  --  LV:%.4f  --  RV:%.4f'%(mean[1],mean[2],mean[3]))
 if __name__ == '__main__':
     main()
