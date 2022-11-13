@@ -1,0 +1,11 @@
+#! /bin/bash
+python predict.py --model_save 'output/seg/8/best_dice.pth' --results 'output/seg/8/results.txt'
+python predict.py --model_save 'output/seg/10/best_dice.pth' --results 'output/seg/10/results.txt'
+python predict.py --model_save 'output/seg/11/best_dice.pth' --results 'output/seg/11/results.txt'
+python predict.py --model_save 'output/seg/12/best_dice.pth' --results 'output/seg/12/results.txt'
+python predict.py --model_save 'output/seg/13/best_dice.pth' --results 'output/seg/13/results.txt'
+python predict.py --model_save 'output/seg/14/best_dice.pth' --results 'output/seg/14/results.txt'
+python predict.py --model_save 'output/seg/15/best_dice.pth' --results 'output/seg/15/results.txt'
+python predict.py --model_save 'output/seg/16/best_dice.pth' --results 'output/seg/16/results.txt'
+python predict.py --model_save 'output/seg/17/best_dice.pth' --results 'output/seg/17/results.txt'
+python predict.py --model_save 'output/seg/18/best_dice.pth' --results 'output/seg/18/results.txt'

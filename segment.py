@@ -7,7 +7,7 @@ import os
 from models import MUnet,Unet
 from torch.autograd import Variable
 from utils import LambdaLR, Seglogger
-from utils import init_weights
+from utils import init_weights, init_criterion
 from datasets import SegDataset, load_image
 from preprocess import Transformation
 from EvalAndLoss import *
@@ -41,10 +41,10 @@ segnet = Unet(opt.input_nc, opt.output_nc)
 segnet.cuda()
 
 # Initial Weights
-init_weights(net=segnet,init_type='normal')
+init_weights(net=segnet,init_type=opt.init_type)
 
 # Lossess
-criterion = CrossEntropyLoss(reduction='mean')
+criterion = init_criterion(str=opt.criterion)
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))

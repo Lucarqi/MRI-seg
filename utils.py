@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import matplotlib.pyplot as plt
+from EvalAndLoss import CrossEntropyLoss,FocalLoss,DiceLoss
 
 def reverse_centercrop(image,size):
     '''
@@ -120,6 +121,7 @@ def tensor2nii(tensor,info):
     '''
     de_img = denormalization(tensor)
     de_img = sitk.GetImageFromArray(de_img)
+    # need to modify image save path
     sitk.WriteImage(de_img,'datasets/train/t2_lge/%s.nii'%(info))
 
 # MinMaxScaler and Normalization
@@ -273,6 +275,21 @@ def init_weights(net,init_type='normal'):
             torch.nn.init.constant_(m.bias.data, 0.0)
     print('initialize network with %s' % init_type)
     net.apply(init_func)
+
+def init_criterion(init_type='crossentropy'):
+    '''
+    choose criterion
+    input:
+        `init_type` -- criterion type
+    '''
+    if init_type == 'crossentropy':
+        return CrossEntropyLoss(reduction='mean')
+    if init_type == 'focalloss':
+        return FocalLoss(reduction='mean')
+    if init_type == 'diceloss':
+        return DiceLoss(reduction='mean')
+    else:
+        raise RuntimeError('no such loss function')
 
 # Segmentation 保存信息
 class Seglogger():
