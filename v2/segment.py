@@ -3,14 +3,12 @@ import argparse
 from torch.utils.data import DataLoader
 import torch
 import os
-
-from models import MUnet,Unet
-from torch.autograd import Variable
-from utils import LambdaLR, Seglogger
-from utils import init_weights
-from datasets import SegDataset, load_image
+import numpy as np
+from models import Unet
+from utils import Seglogger
+from utils import init_weights, init_criterion
+from datasets import SegDataset, makedatasets
 from preprocess import Transformation
-from EvalAndLoss import *
 from predict import valid_seg
 
 # 超参数的设置
@@ -41,10 +39,10 @@ segnet = Unet(opt.input_nc, opt.output_nc)
 segnet.cuda()
 
 # Initial Weights
-init_weights(net=segnet,init_type='normal')
+init_weights(net=segnet,init_type=opt.init_type)
 
 # Lossess
-criterion = CrossEntropyLoss(reduction='mean')
+criterion = init_criterion(init_type=opt.criterion)
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
@@ -55,28 +53,13 @@ transforms_ = Transformation(opt).get()
 train_trans = transforms_['train']
 valid_trans = transforms_['valid']
 
-# Get require data
-types = ['C0LGE','LGE','T2LGE']
-need_data = load_image(str=types,paired_label=True)
-image = need_data['image']
-label = need_data['label']
-
-# Split dataset(just simply split to train|valid[8:2])
-state = np.random.get_state()
-np.random.shuffle(image)
-np.random.set_state(state)
-np.random.shuffle(label)
-index = int(len(image) * 0.8)
-train_data = {'image':image[:index],'label':label[:index]}
-valid_data = {'image':image[index:],'label':label[index:]}
+# Get require data and validation path
+types = ['LGE','C0LGE','T2LGE']
+image, label , valid_path = makedatasets(types,lge_valid=False,split=0.2)
 
 # Load Dataset
-train_dataloader = DataLoader(SegDataset(transforms_=train_trans,image=train_data['image'],
-                                label=train_data['label'],mode='train'),
-                                batch_size=opt.batchSize,shuffle=True,num_workers=opt.n_cpu)
-valid_dataloader = DataLoader(SegDataset(transforms_=valid_trans, image=valid_data['image'],
-                                label=valid_data['label'],mode='valid'),
-                                batch_size=1,shuffle=False,num_workers=opt.n_cpu)                                
+train_dataloader = DataLoader(SegDataset(transforms_=train_trans,image=image,label=label),
+                                batch_size=opt.batchSize,shuffle=True,num_workers=opt.n_cpu)                              
 
 # Logger to save info
 loss_save = os.path.join(opt.save_root,'loss.csv')
@@ -104,22 +87,20 @@ for epoch in range(opt.epoch, opt.n_epochs):
         train_loss = loss.item()
         valid_loss = 0
         dice = 0
-        jaccard = 0
         # if end of one epoch:  validation
         if ((i+1) % len(train_dataloader)) == 0:
-            re = valid_seg(model=segnet,dataloader=valid_dataloader,criterion=criterion)
-            valid_loss = re['loss']
-            mdice = np.mean(re['dice'][:,0])
-            mjaccard = np.mean(re['jaccard'][:,0])
-            dice = re['dice']
-            jaccard = re['jaccard']
+            loss, scores = valid_seg(model=segnet,datapath=valid_path,criterion=criterion)
+            valid_loss = loss
+            mdice = np.mean(scores[1:])
+            dice = scores
+            dice[0] = mdice
             # save model
             if mdice > best_dice:
                 best_dice = mdice
                 torch.save(segnet.state_dict(),os.path.join(opt.save_root,'best_dice.pth'))
         # save info
         logger.log({'train_loss':train_loss, 'valid_loss':valid_loss, 'lr':lr,
-                'Dice':dice, 'Jaccard':jaccard})
+                'Dice':dice})
     # step lr rate
     lr_munet.step()
 

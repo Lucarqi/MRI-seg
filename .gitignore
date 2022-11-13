@@ -118,5 +118,5 @@ output/cyclegan/
 # biasfiledcorrection
 biasfiledcorrection/
 
-# v1 version
-v1/
+# auto shell
+.sh

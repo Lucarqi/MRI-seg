@@ -1,53 +1,69 @@
 import argparse
 import sys
-import numpy as np
-import os
-import re
+from torch.utils.data import DataLoader
+from torch.autograd import Variable
 import torch
-import SimpleITK as sitk
-from utils import saveasnii, minmax_normal
+from datasets import ImageDataset
+from utils import tensor2nii
 from models import Generator
+from preprocess import Transformation
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataroot', type=str, default='datasets/train/all_image', help='root directory of the dataset')
+parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
+parser.add_argument('--dataroot', type=str, default='datasets/cyclegan/test', help='root directory of the dataset')
 parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
 parser.add_argument('--output_nc', type=int, default=1, help='number of channels of output data')
-parser.add_argument('--generator_A2B', type=str, default='output/cyclegan/3/netG_A2B.pth', help='A2B generator checkpoint file')
-parser.add_argument('--source_type', type=str, default='T2', help='source image type ,include C0 or T2')
+parser.add_argument('--size', type=int, default=256, help='size of the data (squared assumed)')
+parser.add_argument('--cuda', action='store_true', help='use GPU computation')
+parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
+parser.add_argument('--generator_A2B', type=str, default='output/cyclegan/netG_A2B.pth', help='A2B generator checkpoint file')
+parser.add_argument('--generator_B2A', type=str, default='output/cyclegan/netG_B2A.pth', help='B2A generator checkpoint file')
+parser.add_argument('--trans_name',type=str, default='cyclegan',help='trans type of dataset')
 opt = parser.parse_args()
 print(opt)
+
+if torch.cuda.is_available() and not opt.cuda:
+    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
 ###### Definition of variables ######
 # Networks
 netG_A2B = Generator(opt.input_nc, opt.output_nc)
-netG_A2B.cuda()
+netG_B2A = Generator(opt.output_nc, opt.input_nc)
+
+if opt.cuda:
+    netG_A2B.cuda()
+    netG_B2A.cuda()
 
 # Load state dicts
 netG_A2B.load_state_dict(torch.load(opt.generator_A2B))
+netG_B2A.load_state_dict(torch.load(opt.generator_B2A))
 
 # Set model's test mode
 netG_A2B.eval()
+netG_B2A.eval()
 
-# Get data file name
-allname = os.listdir(opt.dataroot)
-name = list(filter(lambda x: re.search(opt.source_type,x) is not None,allname))
+# Inputs & targets memory allocation
+Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
+input_A = Tensor(opt.batchSize, opt.input_nc, opt.size, opt.size)
+input_B = Tensor(opt.batchSize, opt.output_nc, opt.size, opt.size)
+
+# Dataset loader
+transforms_ = Transformation(opt).get()
+# got a dict of {bssfp image, label, info}
+dataloader = DataLoader(ImageDataset(transforms_=transforms_['valid'], unaligned=True, mode='valid'), 
+                        batch_size=opt.batchSize, shuffle=False, num_workers=opt.n_cpu)
 
 ###################################
 ###### Testing######
-for i in range(len(name)):
-    dataroot = os.path.join(opt.dataroot,name[i])
-    source = sitk.ReadImage(dataroot,outputPixelType=sitk.sitkFloat32)# [h,w,n]
-    image = sitk.GetArrayFromImage(source) # [n,h,w]
-    out = np.zeros((image.shape[0],image.shape[1],image.shape[2]))
-    # generate fake lge slice by slice
-    for j in range(image.shape[0]):
-        input = torch.tensor(image[j]).unsqueeze(dim=0)
-        input = minmax_normal(input).unsqueeze(dim=0).cuda()
-        fake_lge = netG_A2B(input)
-        output = fake_lge.detach().cpu().numpy().squeeze() # [h,w]
-        out[j,:,:] = output
-    # save as .nii.gz
-    saveasnii(image=out,info=name[i])
-    sys.stdout.write('\rGenerated patient image %s'%(name[i]))
+
+for i, batch in enumerate(dataloader):
+    # Set model input
+    real_A = batch['A'].cuda()
+    info = batch['B'][0]
+    
+    fake_B = netG_A2B(real_A)
+    # save as .nii
+    tensor2nii(fake_B.data,info)
+    sys.stdout.write('\rGenerated images %04d of %04d' % (i+1, len(dataloader)))
 sys.stdout.write('\n')
 ###################################

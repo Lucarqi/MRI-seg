@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import matplotlib.pyplot as plt
+from EvalAndLoss import *
 
 def reverse_centercrop(image,size):
     '''
@@ -42,13 +43,6 @@ def set_requires_grad(nets, requires_grad=False):
                 for param in net.parameters():
                     param.requires_grad = requires_grad
 
-
-def tensor2image(tensor):
-    image = 127.5*(tensor[0].cpu().float().numpy() + 1.0)
-    if image.shape[0] == 1:
-        image = np.tile(image, (3,1,1))
-    return image.astype(np.uint8)
-
 def mask2onehot(mask, label):
     '''
     convert label to onehot mask
@@ -68,7 +62,7 @@ def mask2onehot(mask, label):
     # get seg_map [H,W,4]
     seg_map = np.stack(seg_map, axis=-1).astype(np.float32)
     # convert to tensor
-    out = torch.tensor(seg_map).permute(2,0,1)
+    out = torch.tensor(seg_map,dtype=torch.float32).permute(2,0,1)
     return out
 
 def onehot2mask(onehot, label):
@@ -98,29 +92,37 @@ def drawhistogram(data):
     plt.hist(img,color='red',bins=200)
     plt.show()
 
-def denormalization(tensor):
-    input = tensor.cpu().float().numpy()
+def denormalization(input):
+    '''
+    denormalize slice [h,w] range of [-1,1] to numpy [h,w] range of [0,255]
+    Input:
+        `input` -- numpy, image slice
+    Output:
+        numpy 
+    '''
     mean = 0.5
     std = 0.5
 
-    input = input * std + mean
-    input = input * 255.0
-    return np.squeeze(input,axis=0)
+    out = input * std + mean
+    out = out * 255.0
+    return out
 
-def tensor2nii(tensor,info):
+def saveasnii(image,info:str):
     '''
-    save cyclegan output
-    from tensor float [1,1,h,w] range of [-1,1]
-    to numpy float .nii.gz file range of [0,255]
-    
+    save cyclegan output in one patient unit
     input :
-        tensor , info (as file name)
-    output: 
-        None ,but create a file named "info".nii.gz
+        `image` -- numpy, predict image of one patient [N,H,W]
+        `info` -- str, save name
     '''
-    de_img = denormalization(tensor)
-    de_img = sitk.GetImageFromArray(de_img)
-    sitk.WriteImage(de_img,'datasets/train/t2_lge/%s.nii'%(info))
+    save = np.zeros((image.shape[0],image.shape[1],image.shape[2]))
+    for i in range(image.shape[0]):
+        slice = image[i] # [h,w]
+        de_img = denormalization(slice)
+        save[i] = de_img
+    saveimage = sitk.GetImageFromArray(save)
+    type_ = info.split('_')[1][0:2]
+    dict_ = {'C0':'fake_lge','T2':'t2_lge'}
+    sitk.WriteImage(saveimage,'datasets/train/%s/%s'%(dict_[type_],info))
 
 # MinMaxScaler and Normalization
 def minmax_normal(input):
@@ -274,6 +276,21 @@ def init_weights(net,init_type='normal'):
     print('initialize network with %s' % init_type)
     net.apply(init_func)
 
+def init_criterion(init_type='crossentropy'):
+    '''
+    choose criterion
+    input:
+        `init_type` -- criterion type
+    '''
+    if init_type == 'crossentropy':
+        return CrossEntropyLoss(reduction='mean')
+    if init_type == 'focalloss':
+        return FocalLoss(reduction='mean')
+    if init_type == 'diceloss':
+        return DiceLoss(reduction='mean')
+    else:
+        raise RuntimeError('no such loss function')
+
 # Segmentation 保存信息
 class Seglogger():
     def __init__(self,save_root,total_epoch, batch_epoch):
@@ -292,8 +309,7 @@ class Seglogger():
         self.batch_epoch = batch_epoch
         # save info at end of one epoch training
         train = pd.DataFrame(columns=['epoch','lr','train_loss','valid_loss',
-                                        'Dice','Dice_Myo','Dice_LV','Dice_RV',
-                                        'Jaccard','Jaccard_Myo','Jaccard_LV','Jaccard_RV'])
+                                        'Dice','Dice_Myo','Dice_LV','Dice_RV',])
         train.to_csv(self.save_root,index=False)
     def log(self,data=None):
         # save time for rest time compute
@@ -311,13 +327,11 @@ class Seglogger():
         if(self.batch % self.batch_epoch) == 0:
             valid_loss = data['valid_loss']
             dice = data['Dice']
-            jaccard = data['Jaccard']
-            mdice = np.mean(dice[:,0])
-            mjaccard = np.mean(jaccard[:,0])
-            sys.stdout.write('\n %s: %.4f | %s: %.4f | %s: %.4f \n' % ('valid_loss',valid_loss,'Dice',mdice,'Jaccard',mjaccard))
+            sys.stdout.write('\n %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f |\n'
+                             % ('valid_loss',valid_loss,'Dice',dice[0], 'Dice_Myo', dice[1]
+                             ,'Dice_LV', dice[2], 'Dice_RV', dice[3]))
             save_data = [self.epoch,lr,self.train_loss/self.batch,valid_loss,
-                        mdice, dice[0,0],dice[1,0],dice[2,0],
-                        mjaccard, jaccard[0,0],jaccard[1,0],jaccard[2,0]]
+                        dice[0], dice[1],dice[2],dice[3],]
             df = pd.DataFrame([save_data])
             df.to_csv(self.save_root, header=False, index=False, mode='a')
             self.train_loss = 0

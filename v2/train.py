@@ -98,7 +98,7 @@ fake_B_buffer = ReplayBuffer()
 transforms_ = Transformation(opt).get()
 
 # Dataset loader
-dataloader = DataLoader(ImageDataset(transforms_['train'], unaligned=True, mode='train'), 
+dataloader = DataLoader(ImageDataset(transforms_['train'], unaligned=True), 
                         batch_size=opt.batchSize, shuffle=True, num_workers=opt.n_cpu)
 # Loss plot realtime
 loss_save = os.path.join(opt.save_root,'loss.csv')
