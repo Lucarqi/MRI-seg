@@ -3,13 +3,12 @@ import argparse
 from torch.utils.data import DataLoader
 import torch
 import os
-
+import numpy as np
 from models import Unet
 from utils import Seglogger
-from utils import init_weights
+from utils import init_weights, init_criterion
 from datasets import SegDataset, makedatasets
 from preprocess import Transformation
-from EvalAndLoss import *
 from predict import valid_seg
 
 # 超参数的设置
@@ -40,10 +39,10 @@ segnet = Unet(opt.input_nc, opt.output_nc)
 segnet.cuda()
 
 # Initial Weights
-init_weights(net=segnet,init_type='normal')
+init_weights(net=segnet,init_type=opt.init_type)
 
 # Lossess
-criterion = CrossEntropyLoss(reduction='mean')
+criterion = init_criterion(init_type=opt.criterion)
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
@@ -56,10 +55,10 @@ valid_trans = transforms_['valid']
 
 # Get require data and validation path
 types = ['LGE','C0LGE','T2LGE']
-image, label , valid_path = makedatasets(types,lge_valid=True)
+image, label , valid_path = makedatasets(types,lge_valid=False,split=0.2)
 
 # Load Dataset
-train_dataloader = DataLoader(SegDataset(transforms_=train_trans,image=image,label=label,mode='train'),
+train_dataloader = DataLoader(SegDataset(transforms_=train_trans,image=image,label=label),
                                 batch_size=opt.batchSize,shuffle=True,num_workers=opt.n_cpu)                              
 
 # Logger to save info
@@ -92,7 +91,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         if ((i+1) % len(train_dataloader)) == 0:
             loss, scores = valid_seg(model=segnet,datapath=valid_path,criterion=criterion)
             valid_loss = loss
-            mdice = np.mean(scores[1:-1])
+            mdice = np.mean(scores[1:])
             dice = scores
             dice[0] = mdice
             # save model

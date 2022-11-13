@@ -18,8 +18,8 @@ class ImageDataset(Dataset):
     def __init__(self, transforms_ ,unaligned=False):
         self.transform = transforms_
         self.unaligned = unaligned
-        self.img_A = nii_loader(str='T2',is_label=False)
-        self.img_B = nii_loader(str='LGE',is_label=False)
+        self.img_A = nii_loader(str_='T2',is_label=False)
+        self.img_B = nii_loader(str_='LGE',is_label=False)
         self.len_a = len(self.img_A)
         self.len_b = len(self.img_B)
 
@@ -50,7 +50,7 @@ def nii_reader(datapath):
     '''
     read one .nii.gz or .nii and return all slices
     Input:
-        `datapath` -- str, path of .nii or .nii.gz file
+        `datapath` -- str_, path of .nii or .nii.gz file
     Output:
         a list of all slice in one patient size is [H, W]
     info:
@@ -67,17 +67,17 @@ def nii_reader(datapath):
         re_slice.append(img_)
     return re_slice
 
-# load all patient images or labels by given str
-def nii_loader(str, is_label=False):
+# load all patient images or labels by given str_
+def nii_loader(str_, is_label=False):
     '''
-    load all patient images or lables by given str
-    str includes:
+    load all patient images or lables by given str_
+    str_ includes:
         all : all images or labels
         C0 : all bSSFP images or labels
         T2 : all T2-weight images or labels
         LGE : all LGE CMR or labels
     Input:
-        `str` -- choosed type
+        `str_` -- choosed type
         `is_label` -- load label or not
     Output:
         a numpy [N,H,W]
@@ -86,9 +86,9 @@ def nii_loader(str, is_label=False):
     if is_label:
         dataroot = 'datasets/train/all_label'
     filename = os.listdir(dataroot)
-    # select filename by str
-    if str != 'all':
-        filename = list(filter(lambda x: re.search(str,x) is not None,filename))
+    # select filename by str_
+    if str_ != 'all':
+        filename = list(filter(lambda x: re.search(str_,x) is not None,filename))
     filename.sort(key=lambda x:int(x.split('_')[0][7:]))
     re_images = []
     # get image and info respectively
@@ -103,11 +103,11 @@ def nii_loader(str, is_label=False):
 # Segmentation
 ###############################################
 
-def getfilepath(str):
+def getfilepath(str_):
     '''
     get all file path
     Input:
-        `str` -- image type
+        `str_` -- image type
     Output:
         a dict {'image':[path],'label':[path]}
     '''
@@ -122,19 +122,19 @@ def getfilepath(str):
             path = root +'patient'+str(i) + suffix
             paths.append(path)
         return paths
-    if str == 'C0LGE':
+    if str_ == 'C0LGE':
         re['image'] = generate(35,'_C0.nii.gz',c0lgeroot)
         re['label'] = generate(35,'_C0_manual.nii.gz',alllabelroot)
-    if str == 'T2LGE':
+    if str_ == 'T2LGE':
         re['image'] = generate(35,'_T2.nii.gz',t2lgeroot)
         re['label'] = generate(35,'_T2_manual.nii.gz',alllabelroot)
-    if str == 'C0':
+    if str_ == 'C0':
         re['image'] = generate(35,'_C0.nii.gz',allimageroot)
         re['label'] = generate(35,'_C0_manual.nii.gz',alllabelroot)
-    if str == 'T2':
+    if str_ == 'T2':
         re['image'] = generate(35,'_T2.nii.gz',allimageroot)
         re['label'] = generate(35,'_T2_manual.nii.gz',alllabelroot)
-    if str == 'LGE':
+    if str_ == 'LGE':
         re['image'] = generate(5,'_LGE.nii.gz',allimageroot)
         re['label'] = generate(5,'_LGE_manual.nii.gz',alllabelroot)
     return re

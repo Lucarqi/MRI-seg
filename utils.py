@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import matplotlib.pyplot as plt
+from EvalAndLoss import *
 
 def reverse_centercrop(image,size):
     '''
@@ -61,7 +62,7 @@ def mask2onehot(mask, label):
     # get seg_map [H,W,4]
     seg_map = np.stack(seg_map, axis=-1).astype(np.float32)
     # convert to tensor
-    out = torch.tensor(seg_map).permute(2,0,1)
+    out = torch.tensor(seg_map,dtype=torch.float32).permute(2,0,1)
     return out
 
 def onehot2mask(onehot, label):
@@ -275,6 +276,21 @@ def init_weights(net,init_type='normal'):
     print('initialize network with %s' % init_type)
     net.apply(init_func)
 
+def init_criterion(init_type='crossentropy'):
+    '''
+    choose criterion
+    input:
+        `init_type` -- criterion type
+    '''
+    if init_type == 'crossentropy':
+        return CrossEntropyLoss(reduction='mean')
+    if init_type == 'focalloss':
+        return FocalLoss(reduction='mean')
+    if init_type == 'diceloss':
+        return DiceLoss(reduction='mean')
+    else:
+        raise RuntimeError('no such loss function')
+
 # Segmentation 保存信息
 class Seglogger():
     def __init__(self,save_root,total_epoch, batch_epoch):
@@ -311,7 +327,9 @@ class Seglogger():
         if(self.batch % self.batch_epoch) == 0:
             valid_loss = data['valid_loss']
             dice = data['Dice']
-            sys.stdout.write('\n %s: %.4f | %s: %.4f | %s: %.4f \n' % ('valid_loss',valid_loss,'Dice',dice[0]))
+            sys.stdout.write('\n %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f |\n'
+                             % ('valid_loss',valid_loss,'Dice',dice[0], 'Dice_Myo', dice[1]
+                             ,'Dice_LV', dice[2], 'Dice_RV', dice[3]))
             save_data = [self.epoch,lr,self.train_loss/self.batch,valid_loss,
                         dice[0], dice[1],dice[2],dice[3],]
             df = pd.DataFrame([save_data])

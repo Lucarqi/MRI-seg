@@ -28,7 +28,7 @@ def valid_seg(model=None,datapath=None,criterion=None):
         for i in range(num):
             imagepath = datapath['image'][i]
             labelpath = datapath['label'][i]
-            image = sitk.ReadImage(imagepath)
+            image = sitk.ReadImage(imagepath,outputPixelType=sitk.sitkFloat32)
             image = sitk.GetArrayFromImage(image) # [N,H,W]
             label = sitk.ReadImage(labelpath)
             label = sitk.GetArrayFromImage(label) # [N,H,W]
@@ -38,16 +38,16 @@ def valid_seg(model=None,datapath=None,criterion=None):
             # get all predict
             for j in range(len(image)):
                 # do center crop
-                data = A.Compose(A.Resize(height=512,width=512),
-                                A.CenterCrop(height=320,width=320))(image=image[j],mask=label[j])
+                data = A.Compose([A.Resize(height=512,width=512),
+                                A.CenterCrop(height=320,width=320),])(image=image[j],mask=label[j])
                 input = data['image']
                 mask = data['mask']
-                input = torch.tensor(input).unsqueeze(dim=0)
+                input = torch.tensor(input,dtype=torch.float32).unsqueeze(dim=0)
                 input = minmax_normal(input).unsqueeze(dim=0).cuda() # [1,1,320,320]
                 remark = [[0.0],[200.0],[500.0],[600.0]]
                 target = mask2onehot(mask=data['mask'],label=remark).unsqueeze(dim=0).cuda() # [1,4,320,320]
                 predict = model(input) # [1,4,320,320]
-                loss_ = criterion(loss_, target).item()
+                loss_ = criterion(predict, target).item()
                 loss = loss + loss_
                 output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) # [320,320]
                 imageout[j,:,:] = output
@@ -57,7 +57,7 @@ def valid_seg(model=None,datapath=None,criterion=None):
             result.append(score)
         # return 
         avg_loss = loss / lens
-        scores = np.mean(np.array(score),axis=0).flatten()
+        scores = np.mean(np.array(result),axis=0).flatten()
         return avg_loss, scores
 
 ##############################################################
@@ -68,6 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
     parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
     parser.add_argument('--model_save', type=str, default='output/seg/best_dice.pth',help='path root to store model parameters')
+    parser.add_argument('--results',type=str, default='output/seg/result.txt', help='path to save result')
     opt = parser.parse_args()
     print(opt)
 
@@ -88,7 +89,7 @@ if __name__ == '__main__':
     for i in range(len(imagename)):
         imageroot = os.path.join('datasets/train/all_image',imagename[i])
         labelroot = os.path.join('datasets/test/C0LET2_gt_for_challenge19/LGE_manual_35_TestData',labelname[i])
-        image = sitk.ReadImage(imageroot)
+        image = sitk.ReadImage(imageroot,outputPixelType=sitk.sitkFloat32)
         image = sitk.GetArrayFromImage(image) # [N,H,W]
         out = np.zeros((image.shape[0],image.shape[1],image.shape[2])) # [n,h,w]
         # get all predict
