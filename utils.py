@@ -3,6 +3,7 @@ import time
 import datetime
 import sys
 
+from models import Unet,MUnet
 from torch.autograd import Variable
 import torch
 import numpy as np
@@ -122,7 +123,7 @@ def tensor2nii(tensor,info):
     de_img = denormalization(tensor)
     de_img = sitk.GetImageFromArray(de_img)
     # need to modify image save path
-    sitk.WriteImage(de_img,'datasets/train/t2_lge/%s.nii'%(info))
+    sitk.WriteImage(de_img,'datasets/train/fake_lge/%s.nii'%(info))
 
 # MinMaxScaler and Normalization
 def minmax_normal(input):

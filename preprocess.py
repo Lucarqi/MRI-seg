@@ -3,7 +3,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import torch
 import albumentations as A
-import cv2
+import SimpleITK as sitk
 
 #############################################
 # normal transforms
@@ -63,6 +63,27 @@ class Transformation:
 #########################################################
 
 # rotation based on myo
-class MyoRotate:
+class MyoRotate():
     def __init__(self) -> None:
         pass
+
+# histogram matching
+def slice_histogram_match(source:list,reference:sitk.Image,filter:sitk.AdaptiveHistogramEqualizationImageFilter):
+    '''
+    histogram match to common one
+    implemented by simpleitk tool
+    Input:
+        `source` -- a list of image [n,h,w]
+        `reference` -- a sitk.Image
+        `filter` -- a sitk.filter
+    Output:
+        a numpy [n,h,w]
+    '''
+    output = []
+    for i in range(len(source)):
+        moving = np.expand_dims(source[i],axis=0)
+        moving = sitk.GetImageFromArray(moving)
+        after = filter.Execute(moving,reference)
+        out = sitk.GetArrayFromImage(after).squeeze(axis=0)
+        output.append(out)
+    return output

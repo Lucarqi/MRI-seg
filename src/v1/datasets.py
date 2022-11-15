@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 import SimpleITK as sitk
 import albumentations as A
 from utils import mask2onehot, minmax_normal
+from preprocess import slice_histogram_match
 
 ###################################################
 # Cyclegan
@@ -21,7 +22,7 @@ class ImageDataset(Dataset):
     def __init__(self, transforms_ ,unaligned=False, mode='train'):
         self.transform = transforms_
         self.unaligned = unaligned
-        data = nii_loader(str='T2',is_label=False)
+        data = nii_loader(str='C0',is_label=False)
         self.img_A = data['image']
         self.img_B = nii_loader(str='LGE',is_label=False)['image']
         self.info_A = data['info']
@@ -164,7 +165,7 @@ def load_fake_lge(type=None):
     return re_image
 
 # 为分割任务加载数据
-def load_image(str, paired_label=True):
+def load_image(str, paired_label=True, histogram_match=False):
     '''
     load paired {image,label} or {image, (no label)} based on 'str' and 'paired_label' for segmentation
     str is the type of image , include :
@@ -176,7 +177,9 @@ def load_image(str, paired_label=True):
     input:
         `str` -- a list of need type, like ['LGE','C0LGE']
         `paired_label` -- a bool, if True only return image that exesits label,otherwise only return image doesn't have label
-    info: all returns is numpy without any preprocess
+        `histogram_match` -- a bool, whether match MRI to common one
+                            notice: 'common one' is choosed by author , which is easly naked-eye-distinguishable
+                                    and this option can be only used in LGE or fake-LGE modality
     output:
         one dict of {'image':..., 'label':...}
         or one dict of {'image':...}
@@ -202,6 +205,14 @@ def load_image(str, paired_label=True):
             image_ = data[len(label_):]
         image.extend(image_)
         label.extend(label_)
+    if histogram_match:
+        matcher = sitk.HistogramMatchingImageFilter()
+        matcher.SetNumberOfHistogramLevels(1024)
+        matcher.SetNumberOfMatchPoints(7)
+        matcher.ThresholdAtMeanIntensityOn()
+        reference = sitk.ReadImage('datasets/train/fake_lge/patient10_C0_1.nii')
+        image = slice_histogram_match(source=image,reference=reference,filter=matcher)
+        
     if paired_label:
         return {'image':image, 'label':label}
     else:

@@ -7,7 +7,7 @@ import os
 from models import MUnet,Unet
 from torch.autograd import Variable
 from utils import LambdaLR, Seglogger
-from utils import init_weights
+from utils import init_weights, init_criterion
 from datasets import SegDataset, load_image
 from preprocess import Transformation
 from EvalAndLoss import *
@@ -27,6 +27,8 @@ parser.add_argument('--save_root', type=str, default='output/seg', help='loss pa
 parser.add_argument('--trans_name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
 parser.add_argument('--init_type', type=str, default='normal',help='initial weight type , inlucde normal,xavier,kaiming')
 parser.add_argument('--criterion', type=str, default='crossentropy',help='loss function, include crossentropy,diceloss,focalloss')
+parser.add_argument('--model', type=str, default='unet', help='model choosed to segmentation')
+parser.add_argument('--histogram_match', type=bool, default=False, help='do histogram match or not')
 opt = parser.parse_args()
 print(opt)
 
@@ -37,14 +39,20 @@ else:
     os.mkdir(opt.save_root)
 
 # Networks
-segnet = Unet(opt.input_nc, opt.output_nc)
+segnet = 0
+if opt.model == 'unet':
+    segnet = Unet(opt.input_nc, opt.output_nc)
+elif opt.model == 'munet':
+    segnet = MUnet(opt.input_nc, opt.output_nc)
+else:
+    raise RuntimeError('no such model:%s'%(opt.model))
 segnet.cuda()
 
 # Initial Weights
-init_weights(net=segnet,init_type='normal')
+init_weights(net=segnet,init_type=opt.init_type)
 
 # Lossess
-criterion = CrossEntropyLoss(reduction='mean')
+criterion = init_criterion(init_type=opt.criterion)
 
 # Optimizers & LR schedulers
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
@@ -57,7 +65,7 @@ valid_trans = transforms_['valid']
 
 # Get require data
 types = ['C0LGE','LGE','T2LGE']
-need_data = load_image(str=types,paired_label=True)
+need_data = load_image(str=types,paired_label=True,histogram_match=True)
 image = need_data['image']
 label = need_data['label']
 

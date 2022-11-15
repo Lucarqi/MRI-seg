@@ -2,8 +2,8 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 import numpy as np
+import SimpleITK as sitk
 
 ###################################################
 # Loss function
@@ -199,3 +199,82 @@ def ThreedDiceScore(predict,target):
         dice_i = 2*(np.sum((predict==i)*(target==i),dtype=np.float32)+0.0001)/(np.sum(predict==i,dtype=np.float32)+np.sum(target==i,dtype=np.float32)+0.0001)
         dice = dice + [dice_i]
     return np.array(dice,dtype=np.float32)
+
+def Hausdorff_compute(pred,groundtruth,spacing):
+    '''
+    compute hausdorff distance
+    comes from https://github.com/FupingWu90/VarDA
+    '''
+    pred = np.squeeze(pred)
+    groundtruth = np.squeeze(groundtruth)
+
+    ITKPred = sitk.GetImageFromArray(pred, isVector=False)
+    ITKPred.SetSpacing(spacing)
+    ITKTrue = sitk.GetImageFromArray(groundtruth, isVector=False)
+    ITKTrue.SetSpacing(spacing)
+
+    overlap_results = np.zeros((1,4, 5))
+    surface_distance_results = np.zeros((1,4, 5))
+
+    overlap_measures_filter = sitk.LabelOverlapMeasuresImageFilter()
+    hausdorff_distance_filter = sitk.HausdorffDistanceImageFilter()
+
+    for i in range(4):
+        pred_i = (pred==i).astype(np.float32)
+        if np.sum(pred_i)==0:
+            overlap_results[0,i,:]=0
+            surface_distance_results[0,i,:]=0
+        else:
+            # Overlap measures
+            overlap_measures_filter.Execute(ITKTrue==i, ITKPred==i)
+            overlap_results[0,i, 0] = overlap_measures_filter.GetJaccardCoefficient()
+            overlap_results[0,i, 1] = overlap_measures_filter.GetDiceCoefficient()
+            overlap_results[0,i, 2] = overlap_measures_filter.GetVolumeSimilarity()
+            overlap_results[0,i, 3] = overlap_measures_filter.GetFalseNegativeError()
+            overlap_results[0,i, 4] = overlap_measures_filter.GetFalsePositiveError()
+            # Hausdorff distance
+            hausdorff_distance_filter.Execute(ITKTrue==i, ITKPred==i)
+
+            surface_distance_results[0,i, 0] = hausdorff_distance_filter.GetHausdorffDistance()
+            # Symmetric surface distance measures
+
+            reference_distance_map = sitk.Abs(sitk.SignedMaurerDistanceMap(ITKTrue == i, squaredDistance=False, useImageSpacing=True))
+            reference_surface = sitk.LabelContour(ITKTrue == i)
+            statistics_image_filter = sitk.StatisticsImageFilter()
+            # Get the number of pixels in the reference surface by counting all pixels that are 1.
+            statistics_image_filter.Execute(reference_surface)
+            num_reference_surface_pixels = int(statistics_image_filter.GetSum())
+
+            segmented_distance_map = sitk.Abs(sitk.SignedMaurerDistanceMap(ITKPred==i, squaredDistance=False, useImageSpacing=True))
+            segmented_surface = sitk.LabelContour(ITKPred==i)
+            # Get the number of pixels in the reference surface by counting all pixels that are 1.
+            statistics_image_filter.Execute(segmented_surface)
+            num_segmented_surface_pixels = int(statistics_image_filter.GetSum())
+
+            # Multiply the binary surface segmentations with the distance maps. The resulting distance
+            # maps contain non-zero values only on the surface (they can also contain zero on the surface)
+            seg2ref_distance_map = reference_distance_map * sitk.Cast(segmented_surface, sitk.sitkFloat32)
+            ref2seg_distance_map = segmented_distance_map * sitk.Cast(reference_surface, sitk.sitkFloat32)
+
+            # Get all non-zero distances and then add zero distances if required.
+            seg2ref_distance_map_arr = sitk.GetArrayViewFromImage(seg2ref_distance_map)
+            seg2ref_distances = list(seg2ref_distance_map_arr[seg2ref_distance_map_arr != 0])
+            seg2ref_distances = seg2ref_distances + \
+                                list(np.zeros(num_segmented_surface_pixels - len(seg2ref_distances)))
+            ref2seg_distance_map_arr = sitk.GetArrayViewFromImage(ref2seg_distance_map)
+            ref2seg_distances = list(ref2seg_distance_map_arr[ref2seg_distance_map_arr != 0])
+            ref2seg_distances = ref2seg_distances + \
+                                list(np.zeros(num_reference_surface_pixels - len(ref2seg_distances)))
+
+            all_surface_distances = seg2ref_distances + ref2seg_distances
+
+            # The maximum of the symmetric surface distances is the Hausdorff distance between the surfaces. In
+            # general, it is not equal to the Hausdorff distance between all voxel/pixel points of the two
+            # segmentations, though in our case it is. More on this below.
+            surface_distance_results[0,i, 1] = np.mean(all_surface_distances)
+            surface_distance_results[0,i, 2] = np.median(all_surface_distances)
+            surface_distance_results[0,i, 3] = np.std(all_surface_distances)
+            surface_distance_results[0,i, 4] = np.max(all_surface_distances)
+
+
+    return overlap_results,surface_distance_results
