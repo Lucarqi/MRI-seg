@@ -1,56 +1,56 @@
 #! /bin/bash
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/43'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/43/best_dice.pth' --results 'output/seg/43/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/44'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/44/best_dice.pth' --results 'output/seg/44/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/45'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/45/best_dice.pth' --results 'output/seg/45/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/46'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/46/best_dice.pth' --results 'output/seg/46/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/47'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/47/best_dice.pth' --results 'output/seg/47/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/48'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/48/best_dice.pth' --results 'output/seg/48/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/49'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/49/best_dice.pth' --results 'output/seg/49/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/50'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/50/best_dice.pth' --results 'output/seg/50/results.txt'
-python segment.py --batchSize 8 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/51'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/15/best_dice.pth' --results 'output/seg/51/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/52'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/52/best_dice.pth' --results 'output/seg/52/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/53'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/53/best_dice.pth' --results 'output/seg/53/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/54'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/54/best_dice.pth' --results 'output/seg/54/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/55'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/55/best_dice.pth' --results 'output/seg/55/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/56'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/56/best_dice.pth' --results 'output/seg/56/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/57'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/57/best_dice.pth' --results 'output/seg/57/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/58'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/58/best_dice.pth' --results 'output/seg/58/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/59'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/59/best_dice.pth' --results 'output/seg/59/results.txt'
-python segment.py --batchSize 4 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/60'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/60/best_dice.pth' --results 'output/seg/60/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/61'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/61/best_dice.pth' --results 'output/seg/61/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/27'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/62/best_dice.pth' --results 'output/seg/62/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'crossentropy' --save_root 'output/seg/63'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/63/best_dice.pth' --results 'output/seg/63/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/64'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/64/best_dice.pth' --results 'output/seg/64/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/65'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/65/best_dice.pth' --results 'output/seg/65/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'focalloss' --save_root 'output/seg/66'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/66/best_dice.pth' --results 'output/seg/66/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/67'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/67/best_dice.pth' --results 'output/seg/67/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'kaiming' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/68'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/68/best_dice.pth' --results 'output/seg/68/results.txt'
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'xavier' --model 'munet' --criterion 'diceloss' --save_root 'output/seg/69'
-python predict.py --model 'munet' --model munet   --model munet--model_save 'output/seg/69/best_dice.pth' --results 'output/seg/69/results.txt'
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/43'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/43/best_dice.pth' --results 'output/seg/stage-1/43/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/44'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/44/best_dice.pth' --results 'output/seg/stage-1/44/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/45'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/45/best_dice.pth' --results 'output/seg/stage-1/45/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/46'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/46/best_dice.pth' --results 'output/seg/stage-1/46/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/47'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/47/best_dice.pth' --results 'output/seg/stage-1/47/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/48'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/48/best_dice.pth' --results 'output/seg/stage-1/48/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/49'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/49/best_dice.pth' --results 'output/seg/stage-1/49/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/50'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/50/best_dice.pth' --results 'output/seg/stage-1/50/results.txt' --histogram_match true
+python segment.py --batchSize 8 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/51'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/15/best_dice.pth' --results 'output/seg/stage-1/51/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/52'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/52/best_dice.pth' --results 'output/seg/stage-1/52/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/53'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/53/best_dice.pth' --results 'output/seg/stage-1/53/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/54'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/54/best_dice.pth' --results 'output/seg/stage-1/54/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/55'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/55/best_dice.pth' --results 'output/seg/stage-1/55/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/56'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/56/best_dice.pth' --results 'output/seg/stage-1/56/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/57'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/57/best_dice.pth' --results 'output/seg/stage-1/57/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/58'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/58/best_dice.pth' --results 'output/seg/stage-1/58/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/59'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/59/best_dice.pth' --results 'output/seg/stage-1/59/results.txt' --histogram_match true
+python segment.py --batchSize 4 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/60'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/60/best_dice.pth' --results 'output/seg/stage-1/60/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/61'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/61/best_dice.pth' --results 'output/seg/stage-1/61/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/27'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/62/best_dice.pth' --results 'output/seg/stage-1/62/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'crossentropy' --save_root 'output/seg/stage-1/63'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/63/best_dice.pth' --results 'output/seg/stage-1/63/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/64'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/64/best_dice.pth' --results 'output/seg/stage-1/64/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/65'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/65/best_dice.pth' --results 'output/seg/stage-1/65/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'focalloss' --save_root 'output/seg/stage-1/66'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/66/best_dice.pth' --results 'output/seg/stage-1/66/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/67'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/67/best_dice.pth' --results 'output/seg/stage-1/67/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'kaiming' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/68'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/68/best_dice.pth' --results 'output/seg/stage-1/68/results.txt' --histogram_match true
+python segment.py --batchSize 16 --n_epochs 100 --init_type 'xavier' --model 'unet' --histogram_match true --criterion 'diceloss' --save_root 'output/seg/stage-1/69'
+python predict.py --model 'unet' --histogram_match true  --model_save 'output/seg/stage-1/69/best_dice.pth' --results 'output/seg/stage-1/69/results.txt' --histogram_match true
 

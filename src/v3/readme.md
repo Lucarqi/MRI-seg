@@ -9,5 +9,8 @@ stage-3的全部实验均在V2下完成，效果不好。
 推测是1.病人之间LGE图像差异很大，有可能过拟合了。2.生成fake_lge效果不好
 
 V3版本综合上面两点
-统一使用simpleitk，并且在进行cyclegan之前将数据进行预处理。  
-包括：1.直方图匹配，将LGE图像的强度分布统一。2.统一resize到512X512再crop到320X320。
+统一使用simpleitk，并且对cyclegan和segmentation数据处理重新设计。    
+cyclegan:  
+1.统一resize到512X512进行直方图匹配。2.Resize到256X256训练。3.测试阶段，直接将图像保存为-1到1之间，不再做minmaxscaler().    
+segmentation:  
+1.图像首先Resize到512X512，再统一crop到320X320进行训练。2.依然采用slice为单位进行数据集划分。
