@@ -22,7 +22,7 @@ class ImageDataset(Dataset):
     def __init__(self, transforms_ ,unaligned=False, mode='train'):
         self.transform = transforms_
         self.unaligned = unaligned
-        data = nii_loader(str='C0',is_label=False)
+        data = nii_loader(str='T2',is_label=False)
         self.img_A = data['image']
         self.img_B = nii_loader(str='LGE',is_label=False)['image']
         self.info_A = data['info']
@@ -37,8 +37,6 @@ class ImageDataset(Dataset):
         # apply torch transform
         a_tensor = torch.from_numpy(self.img_A[index_a]).float().unsqueeze(0)
         item_A = self.transform(a_tensor)
-        if self.mode == 'valid':
-            item_A = a_tensor
         # minmaxscaler and normalization
         item_A = minmax_normal(item_A)
 

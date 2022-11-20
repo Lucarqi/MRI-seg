@@ -171,5 +171,7 @@ def main():
         f.writelines('RV:       mean'+ str(mean_surface_distance[3].tolist()) + '\n')
         f.writelines('          std'+ str(std_surface_distance[3].tolist()) + '\n')
     print('test done\n')
+    print('Dice Score:  Backgroud %.4f ---  Myo %.4f ---  LV %.4f ---  RV %.4f\n'%
+        (dicemean[0],dicemean[1],dicemean[2],dicemean[3]))
 if __name__ == '__main__':
     main()

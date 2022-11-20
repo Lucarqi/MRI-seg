@@ -1,12 +1,12 @@
 import argparse
 import sys
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
+import SimpleITK as sitk
 import torch
 from datasets import ImageDataset
-from utils import tensor2nii
 from models import Generator
 from preprocess import Transformation
+from utils import denormalization
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
@@ -60,10 +60,11 @@ for i, batch in enumerate(dataloader):
     # Set model input
     real_A = batch['A'].cuda()
     info = batch['B'][0]
-    
-    fake_B = netG_A2B(real_A)
-    # save as .nii
-    tensor2nii(fake_B.data,info)
+    fake_B = netG_A2B(real_A) # [1,1,256,256]
+    # scale to 255
+    img = denormalization(fake_B.detach())
+    save = sitk.GetImageFromArray(img)
+    sitk.WriteImage(save,'datasets/train/t2_lge/%s.nii'%(info))
     sys.stdout.write('\rGenerated images %04d of %04d' % (i+1, len(dataloader)))
 sys.stdout.write('\n')
 ###################################

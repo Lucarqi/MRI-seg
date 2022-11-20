@@ -1,10 +1,9 @@
 # preprocess class uesed in cyclegan or unet
 import torchvision.transforms as transforms
 import numpy as np
-import torch
 import albumentations as A
 import SimpleITK as sitk
-
+#from datasets import load_image
 #############################################
 # normal transforms
 #############################################
@@ -44,7 +43,11 @@ class Transformation:
         train_transforms = A.Compose([
             A.Resize(height=512,width=512),
             A.CenterCrop(height=320,width=320),
-            A.ElasticTransform(alpha=200,sigma=100,alpha_affine=35,p=0.7),
+            A.OneOf([
+                A.ElasticTransform(alpha=200,sigma=100,alpha_affine=35,p=0.7),
+                A.GridDistortion(p=0.7),
+            ],p=0.8),
+            A.RandomGamma(gamma_limit=(70,100),p=1),
             A.RandomRotate90(),
             A.VerticalFlip(),
             A.HorizontalFlip(),
@@ -63,10 +66,24 @@ class Transformation:
 #########################################################
 
 # rotation based on myo
-class MyoRotate():
-    def __init__(self) -> None:
-        pass
-
+def Rotation(image,label):
+    '''
+    Rotation image based on cardic contour
+    comes from https://arxiv.org/abs/1910.12514
+    Input:
+        `image` -- input list of image
+        `label` -- matched label
+    '''
+    lens = len(image)
+    for i in range(lens):
+        size = image[i].shape[0]
+        # get Myo contour
+        label = (label==200) * 1 + (label==500) * 0 + (label==600) * 0
+        if np.sum(label) == 0:
+            # don't have Myo continue
+            continue
+        
+        
 # histogram matching
 def slice_histogram_match(source:list,reference:sitk.Image,filter:sitk.AdaptiveHistogramEqualizationImageFilter):
     '''

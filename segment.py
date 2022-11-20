@@ -4,8 +4,7 @@ from torch.utils.data import DataLoader
 import torch
 import os
 
-from models import MUnet,Unet
-from torch.autograd import Variable
+from models import MUnet,Unet,AttentionUnet
 from utils import LambdaLR, Seglogger
 from utils import init_weights, init_criterion
 from datasets import SegDataset, load_image
@@ -27,7 +26,7 @@ parser.add_argument('--save_root', type=str, default='output/seg', help='loss pa
 parser.add_argument('--trans_name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
 parser.add_argument('--init_type', type=str, default='normal',help='initial weight type , inlucde normal,xavier,kaiming')
 parser.add_argument('--criterion', type=str, default='crossentropy',help='loss function, include crossentropy,diceloss,focalloss')
-parser.add_argument('--model', type=str, default='unet', help='model choosed to segmentation')
+parser.add_argument('--model', type=str, default='unet', help='model choosed to segmentation, inlucde|unet|munet|aunet')
 parser.add_argument('--histogram_match', type=bool, default=False, help='do histogram match or not')
 opt = parser.parse_args()
 print(opt)
@@ -44,6 +43,8 @@ if opt.model == 'unet':
     segnet = Unet(opt.input_nc, opt.output_nc)
 elif opt.model == 'munet':
     segnet = MUnet(opt.input_nc, opt.output_nc)
+elif opt.model == 'aunet':
+    segnet = AttentionUnet(opt.input_nc, opt.output_nc)
 else:
     raise RuntimeError('no such model:%s'%(opt.model))
 segnet.cuda()
@@ -65,7 +66,7 @@ valid_trans = transforms_['valid']
 
 # Get require data
 types = ['C0LGE','LGE','T2LGE']
-need_data = load_image(str=types,paired_label=True,histogram_match=True)
+need_data = load_image(str=types,paired_label=True)
 image = need_data['image']
 label = need_data['label']
 
@@ -74,7 +75,7 @@ state = np.random.get_state()
 np.random.shuffle(image)
 np.random.set_state(state)
 np.random.shuffle(label)
-index = int(len(image) * 0.8)
+index = int(len(image) * 0.6)
 train_data = {'image':image[:index],'label':label[:index]}
 valid_data = {'image':image[index:],'label':label[index:]}
 

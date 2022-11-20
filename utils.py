@@ -11,6 +11,7 @@ import pandas as pd
 import SimpleITK as sitk
 import matplotlib.pyplot as plt
 from EvalAndLoss import CrossEntropyLoss,FocalLoss,DiceLoss
+import albumentations as A
 
 def reverse_centercrop(image,size):
     '''
@@ -31,6 +32,20 @@ def reverse_centercrop(image,size):
     out[xmin:xmax,ymin:ymax] = image
     return out 
 
+def reverse_data(image, padding,resize):
+    '''
+    Padding and Resize to source target
+    Input:
+        `image` -- input image
+        `padding` -- padding size
+        `resize` -- resize size
+    '''
+    # do padding first
+    padding = reverse_centercrop(image=image,size=padding)
+    resize = A.Resize(height=resize,width=resize)(image=padding)
+    out = resize['image']
+    return out
+
 def set_requires_grad(nets, requires_grad=False):
         """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
         Parameters:
@@ -44,12 +59,14 @@ def set_requires_grad(nets, requires_grad=False):
                 for param in net.parameters():
                     param.requires_grad = requires_grad
 
+def denormalization(tensor):
+    input = tensor.cpu().float().numpy()
+    mean = 0.5
+    std = 0.5
 
-def tensor2image(tensor):
-    image = 127.5*(tensor[0].cpu().float().numpy() + 1.0)
-    if image.shape[0] == 1:
-        image = np.tile(image, (3,1,1))
-    return image.astype(np.uint8)
+    input = input * std + mean
+    input = input * 255.0
+    return np.squeeze(input,axis=0)
 
 def mask2onehot(mask, label):
     '''
@@ -97,33 +114,8 @@ def drawhistogram(data):
         data - a numpy dimension of [h,w]
     '''
     img = data.ravel()
-    plt.hist(img,color='red',bins=200)
+    plt.hist(img,color='red',bins=1024)
     plt.show()
-
-def denormalization(tensor):
-    input = tensor.cpu().float().numpy()
-    mean = 0.5
-    std = 0.5
-
-    input = input * std + mean
-    input = input * 255.0
-    return np.squeeze(input,axis=0)
-
-def tensor2nii(tensor,info):
-    '''
-    save cyclegan output
-    from tensor float [1,1,h,w] range of [-1,1]
-    to numpy float .nii.gz file range of [0,255]
-    
-    input :
-        tensor , info (as file name)
-    output: 
-        None ,but create a file named "info".nii.gz
-    '''
-    de_img = denormalization(tensor)
-    de_img = sitk.GetImageFromArray(de_img)
-    # need to modify image save path
-    sitk.WriteImage(de_img,'datasets/train/fake_lge/%s.nii'%(info))
 
 # MinMaxScaler and Normalization
 def minmax_normal(input):
