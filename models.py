@@ -96,6 +96,19 @@ class Discriminator(nn.Module):
         # Average pooling and flatten
         #return F.avg_pool2d(x, x.size()[2:]).view(x.size()[0], -1)
 
+def segment_model(opt):
+    inc = opt.input_nc
+    ouc = opt.output_nc
+    name = opt.model
+    if name == 'unet':
+        return Unet(inc,ouc)
+    elif name == 'munet':
+        return MUnet(inc,ouc)
+    elif name == 'aunet':
+        return AttentionUnet(inc,4)
+    else:
+        raise RuntimeError('no such model')
+
 ###################################################
 #   UNet and Modified UNet
 ###################################################

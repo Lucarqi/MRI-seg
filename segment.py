@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import torch
 import os
 
-from models import MUnet,Unet,AttentionUnet
+from models import segment_model
 from utils import LambdaLR, Seglogger
 from utils import init_weights, init_criterion
 from datasets import SegDataset, load_image
@@ -17,8 +17,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=8, help='size of the batches')
-parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
-parser.add_argument('--size', type=int, default=512, help='size of the data crop (squared assumed)')
+parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
+parser.add_argument('--size', type=int, default=512, help='size of the data resize')
+parser.add_argument('--centercrop', type=int, default=320, help='size of the data centercrop')
 parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
 parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
 parser.add_argument('--n_cpu', type=int, default=4, help='number of cpu threads to use during batch generation')
@@ -26,8 +27,9 @@ parser.add_argument('--save_root', type=str, default='output/seg', help='loss pa
 parser.add_argument('--trans_name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
 parser.add_argument('--init_type', type=str, default='normal',help='initial weight type , inlucde normal,xavier,kaiming')
 parser.add_argument('--criterion', type=str, default='crossentropy',help='loss function, include crossentropy,diceloss,focalloss')
-parser.add_argument('--model', type=str, default='unet', help='model choosed to segmentation, inlucde|unet|munet|aunet')
+parser.add_argument('--model', type=str, default='aunet', help='model choosed to segmentation, inlucde|unet|munet|aunet')
 parser.add_argument('--histogram_match', type=bool, default=False, help='do histogram match or not')
+parser.add_argument('--lock',type=bool, default=True, help='lock random seed or not')
 opt = parser.parse_args()
 print(opt)
 
@@ -38,15 +40,7 @@ else:
     os.mkdir(opt.save_root)
 
 # Networks
-segnet = 0
-if opt.model == 'unet':
-    segnet = Unet(opt.input_nc, opt.output_nc)
-elif opt.model == 'munet':
-    segnet = MUnet(opt.input_nc, opt.output_nc)
-elif opt.model == 'aunet':
-    segnet = AttentionUnet(opt.input_nc, opt.output_nc)
-else:
-    raise RuntimeError('no such model:%s'%(opt.model))
+segnet = segment_model(opt)
 segnet.cuda()
 
 # Initial Weights
@@ -56,8 +50,8 @@ init_weights(net=segnet,init_type=opt.init_type)
 criterion = init_criterion(init_type=opt.criterion)
 
 # Optimizers & LR schedulers
-optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
-lr_munet = torch.optim.lr_scheduler.StepLR(optimizer,50,gamma=0.1,last_epoch=-1)
+optimizer = torch.optim.AdamW(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
+lr_munet = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=30)
 
 # Data Transforms
 transforms_ = Transformation(opt).get()
@@ -75,7 +69,7 @@ state = np.random.get_state()
 np.random.shuffle(image)
 np.random.set_state(state)
 np.random.shuffle(label)
-index = int(len(image) * 0.6)
+index = int(len(image) * 0.8)
 train_data = {'image':image[:index],'label':label[:index]}
 valid_data = {'image':image[index:],'label':label[index:]}
 
@@ -99,7 +93,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         segnet.train()
         # [N,1,H,W]
         image = batch['image'].cuda()
-        # [N,C,H,W]
+        # [N,4,H,W]
         target = batch['target'].cuda()
         # model forward
         predict = segnet(image)

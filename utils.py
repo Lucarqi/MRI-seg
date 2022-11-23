@@ -324,7 +324,9 @@ class Seglogger():
             jaccard = data['Jaccard']
             mdice = np.mean(dice[:,0])
             mjaccard = np.mean(jaccard[:,0])
-            sys.stdout.write('\n %s: %.4f | %s: %.4f | %s: %.4f \n' % ('valid_loss',valid_loss,'Dice',mdice,'Jaccard',mjaccard))
+            sys.stdout.write('\n%s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f \n' % 
+                            ('valid_loss',valid_loss,'Dice',mdice,'Myo',dice[0,0],
+                            'LV',dice[1,0],'RV',dice[2,0]))
             save_data = [self.epoch,lr,self.train_loss/self.batch,valid_loss,
                         mdice, dice[0,0],dice[1,0],dice[2,0],
                         mjaccard, jaccard[0,0],jaccard[1,0],jaccard[2,0]]

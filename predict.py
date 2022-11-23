@@ -5,7 +5,7 @@ import numpy as np
 from datasets import *
 import SimpleITK as sitk
 import argparse
-from models import Unet
+from models import segment_model
 from utils import *
 from EvalAndLoss import *
 import albumentations as A
@@ -76,19 +76,15 @@ def main():
     parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
     parser.add_argument('--model_save', type=str, default='output/seg/best_dice.pth',help='path root to store model parameters')
     parser.add_argument('--results', type=str, default='results.txt',help='path to save results')
-    parser.add_argument('--model', type=str, default='unet', help='model to segment')
+    parser.add_argument('--model', type=str, default='aunet', help='model to segment')
     parser.add_argument('--histogram_match', type=bool, default=False, help='do histogram match or not')
+    parser.add_argument('--size', type=int, default=512, help='size of the data resize')
+    parser.add_argument('--centercrop', type=int, default=320, help='size of the data centercrop')
     opt = parser.parse_args()
     print(opt)
 
     # model
-    model = 0
-    if opt.model == 'unet':
-        model = Unet(opt.input_nc,opt.output_nc)
-    elif opt.model == 'munt':
-        model = MUnet(opt.input_nc,opt.output_nc)
-    else:
-        raise RuntimeError('no such model %s'%(opt.model))
+    model = segment_model(opt)
     # load state dict
     model.load_state_dict(torch.load(opt.model_save))
     model.eval().cuda()
@@ -103,34 +99,33 @@ def main():
     result = np.zeros((len(imagename),4))
     total_overlap =np.zeros((1,4, 5))
     total_surface_distance=np.zeros((1,4, 5))
+    # read one paitent and prdict
     for i in range(len(imagename)):
         imageroot = os.path.join('datasets/train/all_image',imagename[i])
         labelroot = os.path.join('datasets/test/C0LET2_gt_for_challenge19/LGE_manual_35_TestData',labelname[i])
         image_ = sitk.ReadImage(imageroot)
         image = sitk.GetArrayFromImage(image_) # [N,H,W]
         out = np.zeros((image.shape[0],image.shape[1],image.shape[2])) # [n,h,w]
-        # get all predict
+        # read one slice and predict
         for j in range(len(image)):
             center = image[j]
-            # do histogram match or not
+            # preprocess
             if opt.histogram_match:
-                matcher = sitk.HistogramMatchingImageFilter()
-                matcher.SetNumberOfHistogramLevels(1024)
-                matcher.SetNumberOfMatchPoints(7)
-                matcher.ThresholdAtMeanIntensityOn()
-                reference = sitk.ReadImage('datasets/train/fake_lge/patient10_C0_1.nii')
-                center = slice_histogram_match(source=center,reference=reference,filter=matcher)[0]
-            # do center crop
-            data = A.CenterCrop(height=320,width=320)(image=center)
+                center = slice_histogram_match(source=center)[0]
+            data = A.Compose([
+                A.Resize(height=opt.size,width=opt.size),
+                A.CenterCrop(height=opt.centercrop,width=opt.centercrop),
+            ])(image=center)
+            # predict
             input = data['image']
             input = torch.tensor(input).unsqueeze(dim=0) # tensor [1,h,w]
             input = minmax_normal(input).unsqueeze(dim=0).cuda() # [1,1,h,w]
             predict = model(input) # [1,4,h,w]
             output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) # [320,320]
-            # padding zeros
-            output = reverse_centercrop(output,size=out.shape[1])
+            # post-process
+            output = reverse_data(output,padding=opt.size,resize=out.shape[1])
             out[j,:,:] = output
-
+        # do validation
         label = sitk.ReadImage(labelroot)
         label = sitk.GetArrayFromImage(label)
         label = (label==200) * 1 + (label==500) * 2 + (label==600) * 3 # [N,h,w]
@@ -147,7 +142,7 @@ def main():
     std_overlap = np.std(total_overlap[1:], axis=0)
     mean_surface_distance = np.mean(total_surface_distance[1:], axis=0)
     std_surface_distance = np.std(total_surface_distance[1:], axis=0)
-
+    # write result
     with open (opt.results, 'a') as f:
         f.writelines('Results:\n')
         f.writelines('Dice Score:  Backgroud  ---  Myo  ---  LV  ---  RV\n')
@@ -173,5 +168,6 @@ def main():
     print('test done\n')
     print('Dice Score:  Backgroud %.4f ---  Myo %.4f ---  LV %.4f ---  RV %.4f\n'%
         (dicemean[0],dicemean[1],dicemean[2],dicemean[3]))
+        
 if __name__ == '__main__':
     main()

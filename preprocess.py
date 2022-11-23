@@ -19,7 +19,6 @@ class Transformation:
     def __init__(self, opt):
         self.name = opt.trans_name
         self.opt = opt
-        
     def get(self):
         return {
             'cyclegan':self.cyclegan_trans,
@@ -41,8 +40,8 @@ class Transformation:
     # segmentation
     def segmentation_trans(self):
         train_transforms = A.Compose([
-            A.Resize(height=512,width=512),
-            A.CenterCrop(height=320,width=320),
+            A.Resize(height=self.opt.size,width=self.opt.size),
+            A.CenterCrop(height=self.opt.centercrop,width=self.opt.centercrop),
             A.OneOf([
                 A.ElasticTransform(alpha=200,sigma=100,alpha_affine=35,p=0.7),
                 A.GridDistortion(p=0.7),
@@ -55,8 +54,8 @@ class Transformation:
         ])
         valid_transforms = A.Compose([
             # resize and crop. in evaul ,dice score or jaccard index dosen't affect
-            A.Resize(height=512,width=512),
-            A.CenterCrop(height=320,width=320)
+            A.Resize(height=self.opt.size,width=self.opt.size),
+            A.CenterCrop(height=self.opt.centercrop,width=self.opt.centercrop)
         ])
         return {'train':train_transforms, 'valid':valid_transforms}
 
@@ -85,22 +84,25 @@ def Rotation(image,label):
         
         
 # histogram matching
-def slice_histogram_match(source:list,reference:sitk.Image,filter:sitk.AdaptiveHistogramEqualizationImageFilter):
+def slice_histogram_match(source:list):
     '''
     histogram match to common one
     implemented by simpleitk tool
     Input:
         `source` -- a list of image [n,h,w]
-        `reference` -- a sitk.Image
-        `filter` -- a sitk.filter
     Output:
         a numpy [n,h,w]
     '''
+    matcher = sitk.HistogramMatchingImageFilter()
+    matcher.SetNumberOfHistogramLevels(1024)
+    matcher.SetNumberOfMatchPoints(7)
+    matcher.ThresholdAtMeanIntensityOn()
+    reference = sitk.ReadImage('datasets/train/fake_lge/patient10_C0_1.nii')
     output = []
     for i in range(len(source)):
         moving = np.expand_dims(source[i],axis=0)
         moving = sitk.GetImageFromArray(moving)
-        after = filter.Execute(moving,reference)
+        after = matcher.Execute(moving,reference)
         out = sitk.GetArrayFromImage(after).squeeze(axis=0)
         output.append(out)
     return output
