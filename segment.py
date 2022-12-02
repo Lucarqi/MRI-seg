@@ -7,9 +7,8 @@ import torch
 import torch.backends.cudnn
 
 from models import segment_model
-from utils import LambdaLR, Seglogger
-from utils import init_weights, init_criterion
-from datasets import SegDataset, load_image
+from utils import init_weights, init_criterion ,Seglogger
+from datasets import SegDataset, makedatasets
 from preprocess import Transformation
 from EvalAndLoss import *
 from predict import valid_seg
@@ -19,7 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=16, help='size of the batches')
-parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
+parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
 parser.add_argument('--size', type=int, default=512, help='size of the data resize')
 parser.add_argument('--centercrop', type=int, default=320, help='size of the data centercrop')
 parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
@@ -70,36 +69,23 @@ init_weights(net=segnet,init_type=opt.init_type)
 criterion = init_criterion(init_type=opt.criterion)
 
 # Optimizers & LR schedulers
-optimizer = torch.optim.AdamW(params=segnet.parameters(), lr=opt.lr,betas=(0.9,0.99))
-lr_munet = torch.optim.lr_scheduler.StepLR(optimizer,step_size=50,gamma=0.1)
+#optimizer = torch.optim.SGD(params=segnet.parameters(), lr=opt.lr, momentum=0.9)
+optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr, betas=(0.9,0.99))
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer,gamma=0.1,step_size=50)
 
 # Data Transforms
 transforms_ = Transformation(opt).get()
 train_trans = transforms_['train']
-valid_trans = transforms_['valid']
+valid_trans = transforms_['valid'] 
 
 # Get require data
-types = ['C0LGE','LGE','T2LGE']
-need_data = load_image(str=types,paired_label=True)
-image = need_data['image']
-label = need_data['label']
-
-# Split dataset(just simply split to train|valid[7:3])
-state = np.random.get_state()
-np.random.shuffle(image)
-np.random.set_state(state)
-np.random.shuffle(label)
-index = int(len(image) * 0.7)
-train_data = {'image':image[:index],'label':label[:index]}
-valid_data = {'image':image[index:],'label':label[index:]}
+# Get require data and validation path
+types = ['LGE','C0LGE','T2LGE']
+image, label , valid_path = makedatasets(types,lge_valid=False,split=0.2)
 
 # Load Dataset
-train_dataloader = DataLoader(SegDataset(transforms_=train_trans,image=train_data['image'],
-                                label=train_data['label'],mode='train'),
-                                batch_size=opt.batchSize,shuffle=True,num_workers=opt.n_cpu,worker_init_fn=work_init_fn)
-valid_dataloader = DataLoader(SegDataset(transforms_=valid_trans, image=valid_data['image'],
-                                label=valid_data['label'],mode='valid'),
-                                batch_size=1,shuffle=False,num_workers=opt.n_cpu)                                
+train_dataloader = DataLoader(SegDataset(transforms_=train_trans,image=image,label=label),
+                                batch_size=opt.batchSize,shuffle=True,num_workers=opt.n_cpu)
 
 # Logger to save info
 loss_save = os.path.join(opt.save_root,'loss.csv')
@@ -108,6 +94,7 @@ logger = Seglogger(loss_save, opt.n_epochs, len(train_dataloader))
 ###################################
 ###### Training & Validation ######
 best_dice = 0
+iters = len(train_dataloader)
 for epoch in range(opt.epoch, opt.n_epochs):
     for i, batch in enumerate(train_dataloader):
         segnet.train()
@@ -143,7 +130,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # save info
         logger.log({'train_loss':train_loss, 'valid_loss':valid_loss, 'lr':lr,
                 'Dice':dice, 'Jaccard':jaccard})
-    # step lr rate
-    lr_munet.step()
+    # lr step
+    scheduler.step()
 
             

@@ -32,7 +32,7 @@ parser.add_argument('--n_cpu', type=int, default=4, help='number of cpu threads 
 parser.add_argument('--lambda_A', type=float, default=10.0, help='intensity of D_A loss')
 parser.add_argument('--lambda_B', type=float, default=10.0, help='intensity of D_B loss')
 parser.add_argument('--lambda_idt', type=float, default=0.5, help='intensity of identity loss')
-parser.add_argument('--save_root', type=str, default='output/cyclegan/', help='loss path to save')
+parser.add_argument('--save_root', type=str, default='output/cyclegan/6', help='loss path to save')
 parser.add_argument('--trans_name', type=str, default='cyclegan', help='chooes transformation type (cyclegan or segmentation)')
 opt = parser.parse_args()
 print(opt)
@@ -91,7 +91,7 @@ fake_B_buffer = ReplayBuffer()
 transforms_ = Transformation(opt).get()
 
 # Dataset loader
-dataloader = DataLoader(ImageDataset(transforms_['train'], unaligned=True, mode='train'), 
+dataloader = DataLoader(ImageDataset(transforms_['train'],mode='train'), 
                         batch_size=opt.batchSize, shuffle=True, num_workers=opt.n_cpu)
 # Loss plot realtime
 loss_save = os.path.join(opt.save_root,'loss.csv')

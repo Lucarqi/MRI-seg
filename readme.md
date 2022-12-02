@@ -12,3 +12,6 @@ V3版本综合上面两点
 统一使用simpleitk，并且在进行cyclegan之前将数据进行预处理。  
 包括：1.直方图匹配，将LGE图像的强度分布统一。2.统一resize到512X512再crop到320X320。  
 效果还是没有V1好。
+
+拉拉拉  
+测试来测试去还是V1好啊，Adam还是厉害，接下来模型融合，weighted diceloss

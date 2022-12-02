@@ -3,7 +3,6 @@ import time
 import datetime
 import sys
 
-from models import Unet,MUnet
 from torch.autograd import Variable
 import torch
 import numpy as np
@@ -59,14 +58,13 @@ def set_requires_grad(nets, requires_grad=False):
                 for param in net.parameters():
                     param.requires_grad = requires_grad
 
-def denormalization(tensor):
-    input = tensor.cpu().float().numpy()
+def denormalization(input):
     mean = 0.5
     std = 0.5
 
     input = input * std + mean
     input = input * 255.0
-    return np.squeeze(input,axis=0)
+    return input
 
 def mask2onehot(mask, label):
     '''
@@ -117,28 +115,24 @@ def drawhistogram(data):
     plt.hist(img,color='red',bins=1024)
     plt.show()
 
-# MinMaxScaler and Normalization
-def minmax_normal(input):
+def saveasnii(image,info:str):
     '''
+    save cyclegan output in one patient unit
     input :
-        tensor [1,h,w]
-    return :
-        minmaxscaler and normalization tensor, range of [-1,1]
+        `image` -- numpy, predict image of one patient [N,H,W]
+        `info` -- str, save name
     '''
-    scaler = (input - torch.min(input))/(torch.max(input) - torch.min(input)) # convert to [0,1]
-    normal = (scaler - 0.5) / 0.5 # convert to [-1,1]
-    return normal
-
-def normal_normal(input):
-    '''
-    input :
-        tensor [1,h,w]
-    return :
-        normal normalization tensor, which means = 0.5, std = 0.5
-    '''
-    normal = (input - torch.mean(input,dim=(1,2),keepdim=True)) / (torch.std(input,dim=(1,2),keepdim=True))
-    out = normal * 0.5 + 0.5
-    return out
+    save = np.zeros((image.shape[0],image.shape[1],image.shape[2]))
+    for i in range(image.shape[0]):
+        slice = image[i] # [h,w]
+        de_img = denormalization(slice)
+        save[i] = de_img
+    saveimage = sitk.GetImageFromArray(save)
+    # set spacing , convenient for resample
+    saveimage.SetSpacing([1.25,1.25,10])
+    type_ = info.split('_')[1][0:2]
+    dict_ = {'C0':'c0_lge','T2':'t2_lge'}
+    sitk.WriteImage(saveimage,'datasets/train/%s/%s'%(dict_[type_],info))
 
 # 保存训练信息
 class Logger():

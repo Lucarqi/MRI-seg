@@ -3,7 +3,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import albumentations as A
 import SimpleITK as sitk
-#from datasets import load_image
+import torch
 #############################################
 # normal transforms
 #############################################
@@ -31,6 +31,7 @@ class Transformation:
             transforms.Resize(int(self.opt.size*1.2), transforms.InterpolationMode.BILINEAR), 
             transforms.RandomCrop(self.opt.size), 
             transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
         ])
         valid_transform = transforms.Compose([
             transforms.Resize(self.opt.size),
@@ -106,3 +107,83 @@ def slice_histogram_match(source:list):
         out = sitk.GetArrayFromImage(after).squeeze(axis=0)
         output.append(out)
     return output
+
+def resample_image(itk_image, is_label=False):
+    '''
+    Resample image and mask to same resolution ,ji 1.25mm X 1.25mm
+    Input:
+        `itk_image` -- sitk image
+        `is_label` -- is mask
+    Output:
+        resample sitk image, dtype is 'sitk.image'
+    '''
+    original_spacing = itk_image.GetSpacing()
+    original_size = itk_image.GetSize()
+    out_spacing = [1.25,1.25,original_spacing[2]]
+
+    out_size = [
+        int(np.round(original_size[0] * (original_spacing[0] / out_spacing[0]))),
+        int(np.round(original_size[1] * (original_spacing[1] / out_spacing[1]))),
+        int(np.round(original_size[2] * (original_spacing[2] / out_spacing[2])))
+        #original_size[2]
+    ]
+
+    resample = sitk.ResampleImageFilter()
+    resample.SetOutputSpacing(out_spacing)
+    resample.SetSize(out_size)
+    resample.SetOutputDirection(itk_image.GetDirection())
+    resample.SetOutputOrigin(itk_image.GetOrigin())
+    resample.SetTransform(sitk.Transform())
+    resample.SetDefaultPixelValue(itk_image.GetPixelIDValue())
+
+    if is_label: # 如果是mask图像，就选择sitkNearestNeighbor这种插值
+        resample.SetInterpolator(sitk.sitkNearestNeighbor)
+    else: # 如果是普通图像，就采用sitkBSpline插值法
+        resample.SetInterpolator(sitk.sitkBSplineResampler)
+
+    return resample.Execute(itk_image) 
+
+# Min_Max normalizatiom
+def min_max(input):
+    '''
+    normalization by slice
+    input :
+        tensor [1,h,w]
+    return :
+        minmaxscaler and normalization tensor, range of [-1,1]
+    '''
+    scaler = (input - torch.min(input))/(torch.max(input) - torch.min(input)) # convert to [0,1]
+    normal = (scaler - 0.5) / 0.5 # convert to [-1,1]
+    return normal
+# z-scores normalization
+def zscores(input):
+    '''
+    z-scores normalization by slice
+    input :
+        tensor [1,h,w]
+    return :
+        normal normalization tensor, which means = 0.5, std = 0.5
+    '''
+    normal = (input - torch.mean(input,dim=(1,2),keepdim=True)) / (torch.std(input,dim=(1,2),keepdim=True))
+    out = normal * 0.5 + 0.5
+    return out
+
+def truncate(MRI):
+    # truncate
+    Hist, _ = np.histogram(MRI, bins=int(MRI.max()))
+
+    idexs = np.argwhere(Hist >= 20)
+    idex_min = np.float32(0)
+    idex_max = np.float32(idexs[-1, 0])
+
+    # MRI[np.where(MRI <= idex_min)] = idex_min
+    MRI[np.where(MRI >= idex_max)] = idex_max
+    # MRI = MRI - (idex_max+idex_min)/2
+    # MRI = MRI / ((idex_max-idex_min)/2)
+
+    # norm
+    sig = MRI[0, 0, 0]
+    MRI = np.where(MRI != sig, MRI - np.mean(MRI[MRI != sig]), 0 * MRI)
+    MRI = np.where(MRI != sig, MRI /
+                    np.std(MRI[MRI != sig] + 1e-7), 0 * MRI)
+    return MRI

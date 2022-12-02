@@ -30,42 +30,54 @@ def mean_std(score):
         re[[i],:] = np.array([mean,std])
     return re
 
-def valid_seg(model=None,dataloader=None,criterion=None):
+def valid_seg(model=None,datapath=None,criterion=None):
     '''
     model validation
     Input:
         `model` -- model on training or already trained
-        `dataloader` -- dataloader of valid/test
+        `datapath` -- dict of {'image':[path],'label':[path]}, validation datasets file path
         `criterion` -- criterion function
-        `device` -- device parameter of cpu or gpu
     Output:
-        a dict of {'loss': float ,'dice': [3,2],'jaccard';[3,2]} dim=0 means classes ,dim=1 means 'mean''std'
+        a dict of {'loss': float ,'dice': [3,2]} dim=0 means classes ,dim=1 means 'mean''std'
     '''
-    loss = 0
-    dice = []
-    jaccard = []
     model.eval()
     with torch.no_grad():
-        for i, batch in enumerate(dataloader):
-            image = batch['image'].cuda() # [N,1,320,320]
-            target = batch['target'].cuda() # [N,4,320,320]
-            predict = model(image)
-            loss_ = criterion(predict,target).item()
-            loss += loss_
-            predict = predict.detach().cpu().numpy()
-            target = target.detach().cpu().numpy()
-            # output / label convert to [H,W] 
-            output = np.argmax(predict,axis=1).squeeze(axis=0)
-            label = np.argmax(target,axis=1).squeeze(axis=0)
-            ds = DiceScore(output,label)
-            dice.append(ds)
-            js = JaccardIndex(output,label)
-            jaccard.append(js)
-    # compute mean and std
-    dice = mean_std(dice)
-    jaccard = mean_std(jaccard)
-    loss = loss / len(dataloader)
-    return {'loss':loss,'dice':dice,'jaccard':jaccard}
+        num = len(datapath['image'])
+        loss = 0.0
+        lens = 0
+        result = []
+        for i in range(num):
+            imagepath = datapath['image'][i]
+            labelpath = datapath['label'][i]
+            image = nii_reader(imagepath,is_label=False)
+            label = nii_reader(labelpath,is_label=True)
+            imageout = np.zeros((len(image),320,320)) # [n,h,w]
+            labelout = np.zeros((len(label),320,320))
+            lens = lens + len(image)
+            # get all predict
+            for j in range(len(image)):
+                # do center crop
+                data = A.Compose([A.Resize(height=512,width=512),
+                                A.CenterCrop(height=320,width=320),])(image=image[j],mask=label[j])
+                input = data['image']
+                mask = data['mask']
+                input = torch.tensor(input,dtype=torch.float32).unsqueeze(dim=0)
+                input = min_max(input).unsqueeze(dim=0).cuda() # [1,1,320,320]
+                remark = [[0.0],[200.0],[500.0],[600.0]]
+                target = mask2onehot(mask=data['mask'],label=remark).unsqueeze(dim=0).cuda() # [1,4,320,320]
+                predict = model(input) # [1,4,320,320]
+                loss_ = criterion(predict, target).item()
+                loss = loss + loss_
+                output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) # [320,320]
+                imageout[j,:,:] = output
+                labelout[j,:,:] = (mask==200) * 1 + (mask==500) * 2 + (mask==600) * 3
+            # do dice score
+            score = ThreedDiceScore(imageout,labelout)
+            result.append(score)
+        # return 
+        avg_loss = loss / lens
+        scores = np.mean(np.array(result),axis=0).flatten()
+        return avg_loss, scores
 
 ##############################################################
 # Test all LGE .nii.gz file 
