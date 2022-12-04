@@ -17,9 +17,9 @@ class ImageDataset(Dataset):
     '''
     Dataloader of cyclegan
     '''
-    def __init__(self, transforms_):
+    def __init__(self, transforms_, opt):
         self.transform = transforms_
-        self.img_A = nii_loader(str='T2',is_label=False)
+        self.img_A = nii_loader(str=opt.source_domain,is_label=False)
         self.img_B = nii_loader(str='LGE',is_label=False)
         self.len_a = len(self.img_A)
         self.len_b = len(self.img_B)
@@ -43,7 +43,7 @@ class ImageDataset(Dataset):
     def __len__(self):
         return max(self.len_a, self.len_b)
 
-def nii_reader(fileroot,is_label = False, do_resmaple = True):
+def nii_reader(fileroot,is_label = False, do_resmaple = True, do_crop=True):
     '''
     Method: 
         read one .nii.gz or .nii and return all slices
@@ -52,21 +52,28 @@ def nii_reader(fileroot,is_label = False, do_resmaple = True):
         `fileroot` -- nii file relative root
         `is_label` -- is label or not
         `do_resample` -- do resmaple or not
+        `do_crop` -- do center crop or not
     Return:
         re_slice: 
             all slices of given file , dtype is numpy.float32 list, size is [N, H, W]
             original range( > 255.0)
+    Info:
+        normal preprocess inlucdes two stage:
+            first -- resample to spacing 1.25X1.25mm
+            second -- center crop to 192X192 size
     '''
-
     re_slice = []
-    volumns = sitk.ReadImage(fileroot)
+    outputPixelType = sitk.sitkInt16 if is_label else sitk.sitkFloat32
+    volumns = sitk.ReadImage(fileroot,outputPixelType)
     if do_resmaple:
         volumns = resample_image(volumns,is_label=is_label)
-    # convert to float32
+        
     data = sitk.GetArrayFromImage(volumns)
     data = data.astype(np.float32)
     for i in range(data.shape[0]):
         img_ = data[i]
+        if do_crop:
+            img_ = center_crop(img_)
         re_slice.append(img_)
     return re_slice
 
@@ -146,6 +153,50 @@ def getfilepath(str_):
         re['label'] = generate(5,'_LGE_manual.nii.gz',alllabelroot)
     return re
 
+def load_image(str:str):
+    '''
+    load one type image
+    Input:
+        `str` -- load type
+    ''' 
+    image = []
+    label = []
+    paths = getfilepath(str)
+    for imagepath in paths['image']:
+        out = nii_reader(imagepath)
+        image.extend(out)
+    for labelpath in paths['label']:
+        out = nii_reader(labelpath,is_label=True)
+        label.extend(out)
+    return image,label
+
+def load_patient(path, is_label=False, do_resample=True, do_crop=True):
+    '''
+    load one patient all slice 
+    Input:
+        `path` -- image path
+        `is_label` -- is label or not
+        `do_resample` -- need resample or not
+        `do_crop` -- do centercrop or not
+    Info:
+        make all original image min_max normal and denormal to [0,255]
+    '''
+    if is_label:
+        return nii_reader(path,True)
+    else:
+        is_ori = True if 'all_image' in path else False
+        volumns = nii_reader(path)
+        # original image
+        if is_ori:
+            fixed = []
+            for i in range(len(volumns)):
+                ori = volumns[i]
+                fixed.append(np_convert255(ori))
+            return fixed
+        # fake image
+        else:
+            return volumns
+
 # load datasets for segmentation
 def makedatasets(types:list, lge_valid = True, split=0.2):
     '''
@@ -163,8 +214,10 @@ def makedatasets(types:list, lge_valid = True, split=0.2):
         `split` -- float, division ratio of training and test set, besides `split` = valid / all
                         notice: if `lge_valid` is true, this cann't take effect
     Output:
-        two numpy of [h,w] for training as image and label input
-        and a dict of {'image':[path],'label':[path]} for validation
+        two numpy represented as train_image,train_label
+        one dict of validation includes {'image':imagepath,'label':labelpath}
+    Info:
+        all image has convert to [0,255]
     '''
     if lge_valid and 'LGE' not in types:
         raise RuntimeError('no LGE type in `types` when `lge_valid` is true')
@@ -184,10 +237,10 @@ def makedatasets(types:list, lge_valid = True, split=0.2):
         types.remove('LGE')
         for i in types:
             for imagepath in paths[i]['image']:
-                out = nii_reader(imagepath)
+                out = load_patient(imagepath)
                 train_image.extend(out)
             for labelpath in paths[i]['label']:
-                out = nii_reader(labelpath)
+                out = load_patient(labelpath,is_label=True)
                 train_label.extend(out)
     else:
         all_imagepath = []
@@ -201,10 +254,10 @@ def makedatasets(types:list, lge_valid = True, split=0.2):
         valid_path['image'] = all_imagepath[:lens]
         valid_path['label'] = all_labelpath[:lens]
         for imagepath in all_imagepath[lens:]:
-            out = nii_reader(imagepath)
+            out = load_patient(imagepath)
             train_image.extend(out)
         for labelpath in all_labelpath[lens:]:
-            out = nii_reader(labelpath)
+            out = load_patient(labelpath,is_label=True)
             train_label.extend(out)
     return train_image, train_label, valid_path
 
@@ -212,41 +265,30 @@ def makedatasets(types:list, lge_valid = True, split=0.2):
 class SegDataset(Dataset):
     '''
     Return :
-        one dict of {'image':..., 'target':....} for train or validation
-        or one dict of {'image':...} for test
+        one dict of {'image':..., 'target':..., 'dist_map':...} for train
     '''
-    def __init__(self,transforms_,image, label, mode='train'):
+    def __init__(self,transforms_, image, label):
         self.transforms = transforms_
-        self.mode = mode
         self.image = image
         self.label = label
-        self.mode = mode
 
     def __getitem__(self,index):
         image = self.image[index]
         mask = self.label[index]
-        if self.mode == 'train':
-            # do transforms
-            data = self.transforms(image=image,mask=mask)
-            trans_i = data['image']
-            trans_m = data['mask']
-            # image normalization
-            tensor_i = torch.tensor(trans_i).unsqueeze(dim=0)
-            nor_i = min_max(tensor_i)
-            # mask convert to onehot
-            remark = [[0.0],[200.0],[500.0],[600.0]]
-            onehot = mask2onehot(mask=trans_m,label=remark)
-            return {'image':nor_i, 'target':onehot}
-        elif self.mode == 'valid':
-            # resize both ,but only crop image,after test to padding predict
-            data = self.transforms(image=image,mask=mask)
-            trans_i = data['image']
-            trans_m = data['mask']
-            tensor_i = torch.tensor(trans_i).unsqueeze(dim=0)
-            nor_i = min_max(tensor_i)
-            remark = [[0.0],[200.0],[500.0],[600.0]]
-            onehot = mask2onehot(mask=trans_m,label=remark)
-            return {'image':nor_i, 'target':onehot}
+        # do transforms
+        data = self.transforms(image=image,mask=mask)
+        trans_i = data['image']
+        trans_m = data['mask']
+        # image normalization
+        normal = np_convert1(trans_i)
+        tensor = torch.tensor(normal).unsqueeze(dim=0).unsqueeze(dim=0)
+        # mask convert to onehot
+        remark = [[0.0],[200.0],[500.0],[600.0]]
+        onehot = mask2onehot(mask=trans_m,label=remark)
+        seg = onehot.clone().detach().numpy()
+        dist = one_hot2dist(seg,resolution=[1.25,1.25],dtype=np.float32)
+        dist = torch.tensor(dist,dtype=torch.float32)
+        return {'image':tensor, 'target':onehot, 'dist_map':dist}
 
     def __len__(self):
         return(len(self.label))

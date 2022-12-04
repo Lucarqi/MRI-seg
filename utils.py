@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import matplotlib.pyplot as plt
-from EvalAndLoss import CrossEntropyLoss,FocalLoss,DiceLoss
+from EvalAndLoss import CrossEntropyLoss,FocalLoss,DiceLoss,BoundaryLoss
 import albumentations as A
 
 def reverse_centercrop(image,size):
@@ -72,8 +72,8 @@ def mask2onehot(mask, label):
     input:
         mask : a numpy of mask [h,w]
         label : a numpy of remark
-    output :
-        a tensor [4, H ,W] for 4 classes {backgroud LV myo RV}
+    output:
+        tensor [4, H ,W] for 4 classes {backgroud LV myo RV}
     '''
     # expand dims to [H W 1]
     mask = np.expand_dims(mask, axis=2)
@@ -86,6 +86,7 @@ def mask2onehot(mask, label):
     seg_map = np.stack(seg_map, axis=-1).astype(np.float32)
     # convert to tensor
     out = torch.tensor(seg_map).permute(2,0,1)
+    
     return out
 
 def onehot2mask(onehot, label):
@@ -275,6 +276,8 @@ def init_criterion(init_type='crossentropy'):
         return FocalLoss(reduction='mean')
     if init_type == 'diceloss':
         return DiceLoss(reduction='mean')
+    if init_type == 'bdloss':
+        return BoundaryLoss(idc=[1,2,3]), CrossEntropyLoss(reduction='mean')
     else:
         raise RuntimeError('no such loss function')
 
@@ -297,7 +300,7 @@ class Seglogger():
         # save info at end of one epoch training
         train = pd.DataFrame(columns=['epoch','lr','train_loss','valid_loss',
                                         'Dice','Dice_Myo','Dice_LV','Dice_RV',
-                                        'Jaccard','Jaccard_Myo','Jaccard_LV','Jaccard_RV'])
+                                    ])
         train.to_csv(self.save_root,index=False)
     def log(self,data=None):
         # save time for rest time compute
@@ -315,15 +318,11 @@ class Seglogger():
         if(self.batch % self.batch_epoch) == 0:
             valid_loss = data['valid_loss']
             dice = data['Dice']
-            jaccard = data['Jaccard']
-            mdice = np.mean(dice[:,0])
-            mjaccard = np.mean(jaccard[:,0])
             sys.stdout.write('\n%s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f \n' % 
-                            ('valid_loss',valid_loss,'Dice',mdice,'Myo',dice[0,0],
-                            'LV',dice[1,0],'RV',dice[2,0]))
-            save_data = [self.epoch,lr,self.train_loss/self.batch,valid_loss,
-                        mdice, dice[0,0],dice[1,0],dice[2,0],
-                        mjaccard, jaccard[0,0],jaccard[1,0],jaccard[2,0]]
+                            ('valid_loss',valid_loss,'Dice',dice[0],'Myo',dice[1],
+                            'LV',[2],'RV',dice[3]))
+            save_data = [self.epoch, lr, self.train_loss/self.batch,valid_loss,
+                        dice[0], dice[1], dice[2], dice[3],]
             df = pd.DataFrame([save_data])
             df.to_csv(self.save_root, header=False, index=False, mode='a')
             self.train_loss = 0

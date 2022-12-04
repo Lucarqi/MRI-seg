@@ -17,7 +17,7 @@ from predict import valid_seg
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
-parser.add_argument('--batchSize', type=int, default=16, help='size of the batches')
+parser.add_argument('--batchSize', type=int, default=8, help='size of the batches')
 parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
 parser.add_argument('--size', type=int, default=512, help='size of the data resize')
 parser.add_argument('--centercrop', type=int, default=320, help='size of the data centercrop')
@@ -27,7 +27,7 @@ parser.add_argument('--n_cpu', type=int, default=4, help='number of cpu threads 
 parser.add_argument('--save_root', type=str, default='output/seg', help='loss path to save')
 parser.add_argument('--trans_name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
 parser.add_argument('--init_type', type=str, default='normal',help='initial weight type , inlucde normal,xavier,kaiming')
-parser.add_argument('--criterion', type=str, default='diceloss',help='loss function, include crossentropy,diceloss,focalloss')
+parser.add_argument('--criterion', type=str, default='crossentropy',help='loss function, include crossentropy,diceloss,focalloss')
 parser.add_argument('--model', type=str, default='aunet', help='model choosed to segmentation, inlucde|unet|munet|aunet')
 parser.add_argument('--histogram_match', type=bool, default=False, help='do histogram match or not')
 parser.add_argument('--lock',type=bool, default=True, help='lock random seed or not')
@@ -66,8 +66,12 @@ segnet.cuda()
 init_weights(net=segnet,init_type=opt.init_type)
 
 # Lossess
-criterion = init_criterion(init_type=opt.criterion)
-
+a = None
+if opt.criterion != 'bdloss':
+    criterion = init_criterion(init_type=opt.criterion)
+else:
+    criterion, boundary_loss = CrossEntropyLoss(), BoundaryLoss(idc=[1,2,3])
+    a = 0.01
 # Optimizers & LR schedulers
 #optimizer = torch.optim.SGD(params=segnet.parameters(), lr=opt.lr, momentum=0.9)
 optimizer = torch.optim.Adam(params=segnet.parameters(), lr=opt.lr, betas=(0.9,0.99))
@@ -78,7 +82,6 @@ transforms_ = Transformation(opt).get()
 train_trans = transforms_['train']
 valid_trans = transforms_['valid'] 
 
-# Get require data
 # Get require data and validation path
 types = ['LGE','C0LGE','T2LGE']
 image, label , valid_path = makedatasets(types,lge_valid=False,split=0.2)
@@ -102,10 +105,13 @@ for epoch in range(opt.epoch, opt.n_epochs):
         image = batch['image'].cuda()
         # [N,4,H,W]
         target = batch['target'].cuda()
+        dist_map = batch['dist_map'].cuda()
         # model forward
         predict = segnet(image)
         # back forward
         loss = criterion(predict,target)
+        if opt.criterion == 'bdloss':
+            loss = loss + a * boundary_loss(predict, dist_map)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -117,19 +123,18 @@ for epoch in range(opt.epoch, opt.n_epochs):
         jaccard = 0
         # if end of one epoch:  validation
         if ((i+1) % len(train_dataloader)) == 0:
-            re = valid_seg(model=segnet,dataloader=valid_dataloader,criterion=criterion)
-            valid_loss = re['loss']
-            mdice = np.mean(re['dice'][:,0])
-            mjaccard = np.mean(re['jaccard'][:,0])
-            dice = re['dice']
-            jaccard = re['jaccard']
+            loss, scores = valid_seg(model=segnet,dataloader=valid_path,type=opt.criterion,a=a)
+            valid_loss = loss
+            mdice = np.mean(scores[1:])
+            dice = scores
+            dice[0] = mdice
             # save model
             if mdice > best_dice:
                 best_dice = mdice
                 torch.save(segnet.state_dict(),os.path.join(opt.save_root,'best_dice.pth'))
         # save info
         logger.log({'train_loss':train_loss, 'valid_loss':valid_loss, 'lr':lr,
-                'Dice':dice, 'Jaccard':jaccard})
+                'Dice':dice})
     # lr step
     scheduler.step()
 

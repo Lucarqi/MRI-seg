@@ -4,6 +4,8 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import SimpleITK as sitk
+from typing import List
+from torch import Tensor, einsum
 
 ###################################################
 # Loss function
@@ -26,10 +28,12 @@ class CrossEntropyLoss(nn.Module):
     Input:
         `predict` -- a tensor of [N, C, H, W]
         `target` -- a tensor onehot mask that shape as `predict`
+        `weight` -- weight of crossentropy
     '''
-    def __init__(self, reduction='mean'):
+    def __init__(self, reduction='mean', weight=None):
         super(CrossEntropyLoss,self).__init__()
         self.reduction = reduction
+        self.weight = weight
     def forward(self,predict,target):
         # convert onehot to index mask
         index = onehot2index(target)
@@ -37,7 +41,7 @@ class CrossEntropyLoss(nn.Module):
         # apply log_softmax = softmax then log [N,C,H,W]
         log = F.log_softmax(predict,dim=1)
         # apply nll_loss , loss is [1, ] scaler
-        loss = F.nll_loss(log,index,reduction=self.reduction)
+        loss = F.nll_loss(log,index,reduction=self.reduction,weight=self.weight)
         return loss
 
 class FocalLoss(nn.Module):
@@ -104,12 +108,13 @@ class DiceLoss(nn.Module):
         `kwargs` -- args used in BinaryDiceLoss
         `predict` -- a tensor of [N, C, H, W]
         `target` -- a tensor onehot mask that shape as `predict`
+        `weight` -- weights of unbalance loss
     '''
     def __init__(self, **kwargs):
         super(DiceLoss,self).__init__()
         self.kwargs = kwargs
 
-    def forward(self,predict,target):
+    def forward(self,predict,target,weight=None):
         assert predict.shape == target.shape
         nclasses = predict.shape[1]
         dice = BinaryDiceLoss(**self.kwargs)
@@ -118,8 +123,38 @@ class DiceLoss(nn.Module):
         # compute DiceLoss = compute BinaryDiceLoss one by one layer separately
         for i in range(0,nclasses):
             dice_loss = dice(predict[:,i],target[:,i])
-            total_loss = total_loss + dice_loss
-        return total_loss / nclasses
+            if weight is not None:
+                total_loss = total_loss + dice_loss * (1/nclasses)
+            else:
+                total_loss = total_loss + dice_loss * weight[i]
+        return total_loss
+
+class SurfaceLoss():
+    '''
+    Boundary loss comes from https://proceedings.mlr.press/v102/kervadec19a.html
+    Input:
+        `kwargs` -- list, [1,2] means compute boundary loss in output channel 1 and 2
+        `probs` -- tensor, prediction after softmax
+        `dist_maps` -- tensor, pre-computed distance map of each label
+    '''
+    def __init__(self, **kwargs):
+        # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
+        self.idc: List[int] = kwargs["idc"]
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, probs: Tensor, dist_maps: Tensor) -> Tensor:
+        # assert simplex(probs)
+        # assert not one_hot(dist_maps)
+        probs = F.softmax(probs,dim=1)
+        pc = probs[:, self.idc, ...].type(torch.float32)
+        dc = dist_maps[:, self.idc, ...].type(torch.float32)
+
+        multipled = einsum("bkwh,bkwh->bkwh", pc, dc)
+
+        loss = multipled.mean()
+
+        return loss
+BoundaryLoss = SurfaceLoss
 
 ##################################################
 # evaluation function

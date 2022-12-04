@@ -4,10 +4,11 @@ import numpy as np
 import albumentations as A
 import SimpleITK as sitk
 import torch
+from typing import Tuple
+from scipy.ndimage import distance_transform_edt as eucl_distance
 #############################################
 # normal transforms
 #############################################
-
 class Transformation:
     '''
     ues method .get() to get transformations
@@ -17,21 +18,18 @@ class Transformation:
         one dict of {'train':..., 'valid':...}
     '''
     def __init__(self, opt):
-        self.name = opt.trans_name
         self.opt = opt
     def get(self):
         return {
             'cyclegan':self.cyclegan_trans,
             'segmentation':self.segmentation_trans,
-        }[self.name]()
+        }[self.opt.name]()
 
     # cyclegan
     def cyclegan_trans(self):
         train_transform = transforms.Compose([
-            transforms.Resize(int(self.opt.size*1.2), transforms.InterpolationMode.BILINEAR), 
-            transforms.RandomCrop(self.opt.size), 
+            # just do simple flip
             transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
         ])
         valid_transform = transforms.Compose([
             transforms.Resize(self.opt.size),
@@ -41,8 +39,6 @@ class Transformation:
     # segmentation
     def segmentation_trans(self):
         train_transforms = A.Compose([
-            A.Resize(height=self.opt.size,width=self.opt.size),
-            A.CenterCrop(height=self.opt.centercrop,width=self.opt.centercrop),
             A.OneOf([
                 A.ElasticTransform(alpha=200,sigma=100,alpha_affine=35,p=0.7),
                 A.GridDistortion(p=0.7),
@@ -62,8 +58,7 @@ class Transformation:
 
 
 #########################################################
-# Image augmentation
-#########################################################
+
 
 # rotation based on myo
 def Rotation(image,label):
@@ -138,8 +133,10 @@ def resample_image(itk_image, is_label=False):
 
     if is_label: # 如果是mask图像，就选择sitkNearestNeighbor这种插值
         resample.SetInterpolator(sitk.sitkNearestNeighbor)
-    else: # 如果是普通图像，就采用sitkBSpline插值法
-        resample.SetInterpolator(sitk.sitkBSplineResampler)
+        resample.SetOutputPixelType(sitk.sitkInt16)
+    else: # 如果是普通图像，就采用sitkLiner插值法
+        resample.SetInterpolator(sitk.sitkLinear)
+        resample.SetOutputPixelType(sitk.sitkFloat32)
 
     return resample.Execute(itk_image) 
 
@@ -187,3 +184,57 @@ def truncate(MRI):
     MRI = np.where(MRI != sig, MRI /
                     np.std(MRI[MRI != sig] + 1e-7), 0 * MRI)
     return MRI
+
+def center_crop(mri):
+    '''
+    Do center_crop after resample, size of 192X192
+    Input:
+        `mri` -- resample mri
+    '''
+    data = A.CenterCrop(height=192,width=192)(image=mri)
+    return data['image']
+
+def one_hot2dist(seg: np.ndarray, resolution: Tuple[float, float, float] = None,
+                 dtype=None) -> np.ndarray:
+    '''
+    onehot to distance map ,comes from https://proceedings.mlr.press/v102/kervadec19a.html
+    Input:
+        `seg` -- np, onehot of a label
+        `resolution` -- tuple, spacing of real image. This only includes 1.25mm X 1.25mm
+    Output:
+        distance map of one label
+    '''
+    #assert one_hot(torch.tensor(seg), axis=0)
+    # classes number
+    K: int = len(seg)
+
+    res = np.zeros_like(seg, dtype=dtype)
+    for k in range(K):
+        posmask = seg[k].astype(np.bool)
+
+        if posmask.any():
+            negmask = ~posmask
+            res[k] = eucl_distance(negmask, sampling=resolution) * negmask \
+                - (eucl_distance(posmask, sampling=resolution) - 1) * posmask
+        # The idea is to leave blank the negative classes
+        # since this is one-hot encoded, another class will supervise that pixel
+
+    return res
+
+def np_convert255(mri):
+    '''
+    min_max normalization and then convert to range of [0,255]
+    Input:
+        `mri` -- numpy of one slice
+    '''
+    scale = (mri - np.min(mri)) / (np.max(mri) - np.min(mri))
+    normal = scale * 255.0
+    return normal
+
+def np_convert1(mri):
+    '''
+    normalization from [0,255.0] to [-1,1] like torch.transfomer
+    '''
+    scale = mri / 255.0
+    normal = (scale - 0.5) / 0.5
+    return normal

@@ -1,3 +1,4 @@
 #! /bin/bash
-python segment.py --batchSize 16 --n_epochs 100 --init_type 'normal' --model 'aunet'   --criterion 'diceloss' --save_root 'output/seg/45'
-python predict.py --model 'aunet' --model_save 'output/seg/45/best_dice.pth' --results 'output/seg/45/results.txt'  
+python train.py --cuda --source_domain 'C0' --n_epochs 300 --save_root 'output/cyclegan/8' --decay_epoch 150
+python train.py --cuda --source_domain 'T2' --n_epochs 200 --save_root 'output/cyclegan/9' --decay_epoch 100
+python train.py --cuda --source_domain 'T2' --n_epochs 300 --save_root 'output/cyclegan/10' --decay_epoch 150

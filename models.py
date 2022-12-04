@@ -106,11 +106,13 @@ def segment_model(opt):
         return MUnet(inc,ouc)
     elif name == 'aunet':
         return AttentionUnet(inc,4)
+    elif name == 'seunet':
+        return SEUnet(inc,ouc,reduction=16)
     else:
         raise RuntimeError('no such model')
 
 ###################################################
-#   UNet and Modified UNet
+#   UNets
 ###################################################
 # convOnce includes {Conv2d, BN , ReLU}
 class convOnce(nn.Module):
@@ -439,3 +441,102 @@ class Attention_block(nn.Module):
 
         return x*psi
 
+#############################################################
+# USE-Net
+#############################################################
+class SELayer(nn.Module):
+    '''
+    SE Net comes from https://arxiv.org/abs/1709.01507
+    '''
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+class SEUnet(nn.Module):
+    '''
+    Unet with SE Net comes from https://arxiv.org/abs/1904.08254
+    '''
+    def __init__(self, inc, ouc, reduction):
+        super(SEUnet,self).__init__()
+        # downsampling
+        # 1->64
+        self.down1 = convTwice(inc,64)
+        self.se1 = SELayer(64,reduction)
+        self.maxplooing1 = nn.MaxPool2d(kernel_size=2)
+        # 64->128
+        self.down2 = convTwice(64,128)
+        self.se2 = SELayer(128,reduction)
+        self.maxplooing2 = nn.MaxPool2d(kernel_size=2)
+        # 128->256
+        self.down3 = convTwice(128,256)
+        self.se3 = SELayer(256,reduction)
+        self.maxplooing3 = nn.MaxPool2d(kernel_size=2)
+        # 256->512
+        self.down4 = convTwice(256,512)
+        self.se4 = SELayer(512,reduction)
+        self.maxplooing4 = nn.MaxPool2d(kernel_size=2)
+        # 512->1024
+        self.bottomneck = convTwice(512,1024)
+        self.sebottom = SELayer(1024,reduction)
+        # upsampling
+        # 1024->512
+        self.unetup1 = UnetUp(512,1024,add_conv=True,is_scale=False)
+        self.upse1 = SELayer(512,reduction)
+        # 512->256
+        self.unetup2 = UnetUp(256,512,add_conv=True,is_scale=False)
+        self.upse2 = SELayer(256,reduction)
+        # 256->128
+        self.unetup3 = UnetUp(128,256,add_conv=True,is_scale=False)
+        self.upse3 = SELayer(128,reduction)
+        # 128->64
+        self.unetup4 = UnetUp(64,128,add_conv=True,is_scale=False)
+        self.upse4 = SELayer(64,reduction)
+        # outlayers
+        self.conv1 = nn.Conv2d(64,4,kernel_size=1)
+
+    def forward(self,x):
+        conv1 = self.down1(x)
+        se1 = self.se1(conv1)
+        maxpooling1 = self.maxplooing1(conv1)
+
+        conv2 = self.down2(maxpooling1)
+        se2 = self.se2(conv2)
+        maxpooling2 = self.maxplooing2(conv2)
+
+        conv3 = self.down3(maxpooling2)
+        se3 = self.se3(conv3)
+        maxpooling3 = self.maxplooing3(conv3)
+
+        conv4 = self.down4(maxpooling3)
+        se4 = self.se4(conv4)
+        maxpooling4 = self.maxplooing4(conv4)
+
+        bottom = self.bottomneck(maxpooling4)
+        sebottom = self.sebottom(bottom)
+
+        up1 = self.unetup1(sebottom,se4)
+        upse1 = self.upse1(up1)
+
+        up2 = self.unetup2(upse1,se3)
+        upse2 = self.upse1(up2)
+
+        up3 = self.unetup3(upse2,se2)
+        upse3 = self.upse3(up3)
+
+        up4 = self.unetup4(upse3,se1)
+        upse4 = self.upse4(up4)
+
+        out = self.conv1(upse4)
+        return out   

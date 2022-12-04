@@ -30,18 +30,23 @@ def mean_std(score):
         re[[i],:] = np.array([mean,std])
     return re
 
-def valid_seg(model=None,datapath=None,criterion=None):
+def valid_seg(model=None,datapath=None,type=None,a=None):
     '''
     model validation
     Input:
         `model` -- model on training or already trained
         `datapath` -- dict of {'image':[path],'label':[path]}, validation datasets file path
-        `criterion` -- criterion function
+        `type` -- criterion function type
+        `a` -- parameter of boundary loss
     Output:
         a dict of {'loss': float ,'dice': [3,2]} dim=0 means classes ,dim=1 means 'mean''std'
     '''
     model.eval()
     with torch.no_grad():
+        if type == 'bdloss':
+            criterion, boundary_loss = CrossEntropyLoss(),BoundaryLoss(idc=[1,2,3])
+        else:
+            criterion = init_criterion(init_type=criterion)
         num = len(datapath['image'])
         loss = 0.0
         lens = 0
@@ -49,26 +54,29 @@ def valid_seg(model=None,datapath=None,criterion=None):
         for i in range(num):
             imagepath = datapath['image'][i]
             labelpath = datapath['label'][i]
-            image = nii_reader(imagepath,is_label=False)
-            label = nii_reader(labelpath,is_label=True)
-            imageout = np.zeros((len(image),320,320)) # [n,h,w]
-            labelout = np.zeros((len(label),320,320))
+            image = load_patient(imagepath,is_label=False)
+            label = load_patient(labelpath,is_label=True)
+            imageout = np.zeros((len(image),192,192)) # [n,h,w]
+            labelout = np.zeros((len(label),192,192))
             lens = lens + len(image)
             # get all predict
             for j in range(len(image)):
-                # do center crop
-                data = A.Compose([A.Resize(height=512,width=512),
-                                A.CenterCrop(height=320,width=320),])(image=image[j],mask=label[j])
-                input = data['image']
-                mask = data['mask']
+                input = image[j]
+                input = np_convert1(input)
+                mask = label[j]
                 input = torch.tensor(input,dtype=torch.float32).unsqueeze(dim=0)
-                input = min_max(input).unsqueeze(dim=0).cuda() # [1,1,320,320]
+                input = input.unsqueeze(dim=0).cuda() # [1,1,192,192]
                 remark = [[0.0],[200.0],[500.0],[600.0]]
-                target = mask2onehot(mask=data['mask'],label=remark).unsqueeze(dim=0).cuda() # [1,4,320,320]
-                predict = model(input) # [1,4,320,320]
-                loss_ = criterion(predict, target).item()
-                loss = loss + loss_
-                output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) # [320,320]
+                target = mask2onehot(mask=mask,label=remark).unsqueeze(dim=0).cuda() # [1,4,192,192]
+                seg = target.numpy()
+                dist_map = one_hot2dist(seg,resolution=[1.25,1.25],dtype=np.float32)
+                dist_map = torch.tensor(dist_map)
+                predict = model(input) # [1,4,192,192]
+                loss_ = criterion(predict, target)
+                if type == 'bdloss':
+                    loss_ = loss_ + a * boundary_loss(predict,dist_map)
+                loss = loss + loss_.item()
+                output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) # [192,192]
                 imageout[j,:,:] = output
                 labelout[j,:,:] = (mask==200) * 1 + (mask==500) * 2 + (mask==600) * 3
             # do dice score
@@ -90,8 +98,6 @@ def main():
     parser.add_argument('--results', type=str, default='results.txt',help='path to save results')
     parser.add_argument('--model', type=str, default='aunet', help='model to segment')
     parser.add_argument('--histogram_match', type=bool, default=False, help='do histogram match or not')
-    parser.add_argument('--size', type=int, default=512, help='size of the data resize')
-    parser.add_argument('--centercrop', type=int, default=320, help='size of the data centercrop')
     opt = parser.parse_args()
     print(opt)
 
@@ -109,38 +115,33 @@ def main():
     labelname = os.listdir('datasets/test/C0LET2_gt_for_challenge19/LGE_manual_35_TestData')
     labelname.sort(key=lambda x:int(x.split('_')[0][7:]))
     result = np.zeros((len(imagename),4))
-    total_overlap =np.zeros((1,4, 5))
+    total_overlap =np.zeros((1,4,5))
     total_surface_distance=np.zeros((1,4, 5))
     # read one paitent and prdict
     for i in range(len(imagename)):
         imageroot = os.path.join('datasets/train/all_image',imagename[i])
         labelroot = os.path.join('datasets/test/C0LET2_gt_for_challenge19/LGE_manual_35_TestData',labelname[i])
         image_ = sitk.ReadImage(imageroot)
-        image = sitk.GetArrayFromImage(image_) # [N,H,W]
-        out = np.zeros((image.shape[0],image.shape[1],image.shape[2])) # [n,h,w]
+        ori_shape = image_.GetSize()[1]
+        # do resample and centercrop
+        image_ = resample_image(image_, is_label=False)
+        image = sitk.GetArrayFromImage(image_) 
+        out = np.zeros((image.shape[0],image.shape[1],image.shape[2])) # [N,192,192]
         # read one slice and predict
         for j in range(len(image)):
-            center = image[j]
-            # preprocess
-            if opt.histogram_match:
-                center = slice_histogram_match(source=center)[0]
-            data = A.Compose([
-                A.Resize(height=opt.size,width=opt.size),
-                A.CenterCrop(height=opt.centercrop,width=opt.centercrop),
-            ])(image=center)
             # predict
-            input = data['image']
-            input = torch.tensor(input).unsqueeze(dim=0) # tensor [1,h,w]
-            input = minmax_normal(input).unsqueeze(dim=0).cuda() # [1,1,h,w]
-            predict = model(input) # [1,4,h,w]
-            output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) # [320,320]
+            input = image[j]
+            input = torch.tensor(input).unsqueeze(dim=0) 
+            input = min_max(input).unsqueeze(dim=0).cuda() 
+            predict = model(input) 
+            output = torch.argmax(predict.detach().cpu(),dim=1).squeeze(dim=0) 
             # post-process
-            output = reverse_data(output,padding=opt.size,resize=out.shape[1])
+            output = reverse_data(output,padding=out.shape[1],resize=ori_shape)
             out[j,:,:] = output
         # do validation
         label = sitk.ReadImage(labelroot)
         label = sitk.GetArrayFromImage(label)
-        label = (label==200) * 1 + (label==500) * 2 + (label==600) * 3 # [N,h,w]
+        label = (label==200) * 1 + (label==500) * 2 + (label==600) * 3 
         dice_score = ThreedDiceScore(out,label)
         result[i,:] = dice_score
         overlap_results,surface_distance_results = Hausdorff_compute(out,label,image_.GetSpacing())

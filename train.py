@@ -24,7 +24,7 @@ parser.add_argument('--batchSize', type=int, default=1, help='size of the batche
 parser.add_argument('--dataroot', type=str, default='datasets/cyclegan/', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
-parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
+parser.add_argument('--size', type=int, default=192, help='size of the data crop (squared assumed)')
 parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
 parser.add_argument('--output_nc', type=int, default=1, help='number of channels of output data')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
@@ -32,8 +32,9 @@ parser.add_argument('--n_cpu', type=int, default=4, help='number of cpu threads 
 parser.add_argument('--lambda_A', type=float, default=10.0, help='intensity of D_A loss')
 parser.add_argument('--lambda_B', type=float, default=10.0, help='intensity of D_B loss')
 parser.add_argument('--lambda_idt', type=float, default=0.5, help='intensity of identity loss')
-parser.add_argument('--save_root', type=str, default='output/cyclegan/6', help='loss path to save')
-parser.add_argument('--trans_name', type=str, default='cyclegan', help='chooes transformation type (cyclegan or segmentation)')
+parser.add_argument('--save_root', type=str, default='output/cyclegan/7', help='loss path to save')
+parser.add_argument('--name', type=str, default='cyclegan', help='chooes transformation type (cyclegan or segmentation)')
+parser.add_argument('--source_domain',type=str, default='C0',help='source domain')
 opt = parser.parse_args()
 print(opt)
 
@@ -81,9 +82,9 @@ lr_scheduler_D = torch.optim.lr_scheduler.LambdaLR(optimizer_D, lr_lambda=Lambda
 Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
 input_A = Tensor(opt.batchSize, opt.input_nc, opt.size, opt.size)
 input_B = Tensor(opt.batchSize, opt.output_nc, opt.size, opt.size)
-# Target's size is Discriminator net out (256 -> 30) that full with 1.0 for True or 0.0 for False
-target_real = Variable(Tensor(1,1,30,30).fill_(1.0), requires_grad=False)
-target_fake = Variable(Tensor(1,1,30,30).fill_(0.0), requires_grad=False)
+# Target's size is Discriminator net out (192 -> 22) that full with 1.0 for True or 0.0 for False
+target_real = Variable(Tensor(1,1,22,22).fill_(1.0), requires_grad=False)
+target_fake = Variable(Tensor(1,1,22,22).fill_(0.0), requires_grad=False)
 # Fake image pool
 fake_A_buffer = ReplayBuffer()
 fake_B_buffer = ReplayBuffer()
@@ -91,14 +92,13 @@ fake_B_buffer = ReplayBuffer()
 transforms_ = Transformation(opt).get()
 
 # Dataset loader
-dataloader = DataLoader(ImageDataset(transforms_['train'],mode='train'), 
+dataloader = DataLoader(ImageDataset(transforms_['train'], opt), 
                         batch_size=opt.batchSize, shuffle=True, num_workers=opt.n_cpu)
 # Loss plot realtime
 loss_save = os.path.join(opt.save_root,'loss.csv')
 logger = Logger(opt.n_epochs, len(dataloader), loss_save)
 
 ###################################
-
 ###### Training ######
 for epoch in range(opt.epoch, opt.n_epochs):
     for i, batch in enumerate(dataloader):
