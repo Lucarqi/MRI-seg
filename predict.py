@@ -46,7 +46,7 @@ def valid_seg(model=None,datapath=None,type=None,a=None):
         if type == 'bdloss':
             criterion, boundary_loss = CrossEntropyLoss(),BoundaryLoss(idc=[1,2,3])
         else:
-            criterion = init_criterion(init_type=criterion)
+            criterion = init_criterion(init_type=type)
         num = len(datapath['image'])
         loss = 0.0
         lens = 0
@@ -67,8 +67,9 @@ def valid_seg(model=None,datapath=None,type=None,a=None):
                 input = torch.tensor(input,dtype=torch.float32).unsqueeze(dim=0)
                 input = input.unsqueeze(dim=0).cuda() # [1,1,192,192]
                 remark = [[0.0],[200.0],[500.0],[600.0]]
-                target = mask2onehot(mask=mask,label=remark).unsqueeze(dim=0).cuda() # [1,4,192,192]
-                seg = target.numpy()
+                onehot = mask2onehot(mask=mask,label=remark) # [1,4,192,192]
+                seg = onehot.clone().detach().numpy()
+                target = onehot.unsqueeze(dim=0).cuda() # [1,4,192,192]
                 dist_map = one_hot2dist(seg,resolution=[1.25,1.25],dtype=np.float32)
                 dist_map = torch.tensor(dist_map)
                 predict = model(input) # [1,4,192,192]

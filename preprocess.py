@@ -51,8 +51,7 @@ class Transformation:
         ])
         valid_transforms = A.Compose([
             # resize and crop. in evaul ,dice score or jaccard index dosen't affect
-            A.Resize(height=self.opt.size,width=self.opt.size),
-            A.CenterCrop(height=self.opt.centercrop,width=self.opt.centercrop)
+            # do nothing
         ])
         return {'train':train_transforms, 'valid':valid_transforms}
 

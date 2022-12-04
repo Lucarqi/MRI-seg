@@ -281,7 +281,7 @@ class SegDataset(Dataset):
         trans_m = data['mask']
         # image normalization
         normal = np_convert1(trans_i)
-        tensor = torch.tensor(normal).unsqueeze(dim=0).unsqueeze(dim=0)
+        tensor = torch.tensor(normal).unsqueeze(dim=0)
         # mask convert to onehot
         remark = [[0.0],[200.0],[500.0],[600.0]]
         onehot = mask2onehot(mask=trans_m,label=remark)

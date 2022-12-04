@@ -19,13 +19,11 @@ parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=8, help='size of the batches')
 parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
-parser.add_argument('--size', type=int, default=512, help='size of the data resize')
-parser.add_argument('--centercrop', type=int, default=320, help='size of the data centercrop')
 parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
 parser.add_argument('--output_nc', type=int, default=4, help='number of channels of output data')
 parser.add_argument('--n_cpu', type=int, default=4, help='number of cpu threads to use during batch generation')
 parser.add_argument('--save_root', type=str, default='output/seg', help='loss path to save')
-parser.add_argument('--trans_name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
+parser.add_argument('--name', type=str, default='segmentation', help='chooes transformation type (cyclegan or segmentation)')
 parser.add_argument('--init_type', type=str, default='normal',help='initial weight type , inlucde normal,xavier,kaiming')
 parser.add_argument('--criterion', type=str, default='crossentropy',help='loss function, include crossentropy,diceloss,focalloss')
 parser.add_argument('--model', type=str, default='aunet', help='model choosed to segmentation, inlucde|unet|munet|aunet')
@@ -80,7 +78,6 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer,gamma=0.1,step_size=50)
 # Data Transforms
 transforms_ = Transformation(opt).get()
 train_trans = transforms_['train']
-valid_trans = transforms_['valid'] 
 
 # Get require data and validation path
 types = ['LGE','C0LGE','T2LGE']
@@ -123,7 +120,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         jaccard = 0
         # if end of one epoch:  validation
         if ((i+1) % len(train_dataloader)) == 0:
-            loss, scores = valid_seg(model=segnet,dataloader=valid_path,type=opt.criterion,a=a)
+            loss, scores = valid_seg(model=segnet,datapath=valid_path,type=opt.criterion,a=a)
             valid_loss = loss
             mdice = np.mean(scores[1:])
             dice = scores

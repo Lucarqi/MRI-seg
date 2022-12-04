@@ -320,7 +320,7 @@ class Seglogger():
             dice = data['Dice']
             sys.stdout.write('\n%s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f | %s: %.4f \n' % 
                             ('valid_loss',valid_loss,'Dice',dice[0],'Myo',dice[1],
-                            'LV',[2],'RV',dice[3]))
+                            'LV',dice[2],'RV',dice[3]))
             save_data = [self.epoch, lr, self.train_loss/self.batch,valid_loss,
                         dice[0], dice[1], dice[2], dice[3],]
             df = pd.DataFrame([save_data])
